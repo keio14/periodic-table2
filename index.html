@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Periodic Table Explorer</title>
+<style>
+  :root {
+    --bg: #0f1320;
+    --bg2: #161b2e;
+    --panel: #1d2440;
+    --panel2: #252d52;
+    --text: #eef1fb;
+    --muted: #9aa3c7;
+    --accent: #ffd43b;
+    --good: #51cf66;
+    --lock: #2a3050;
+    --radius: 14px;
+    --shadow: 0 8px 24px rgba(0,0,0,.35);
+    /* category colors */
+    --c-alkali: #ff6b6b;
+    --c-alkaline: #ff922b;
+    --c-transition: #ffd43b;
+    --c-post: #94d82d;
+    --c-metalloid: #20c997;
+    --c-nonmetal: #4dabf7;
+    --c-halogen: #748ffc;
+    --c-noble: #da77f2;
+    --c-lanthanide: #f783ac;
+    --c-actinide: #e599f7;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 700px at 70% -10%, #20284a 0%, var(--bg) 55%);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ---------- Header ---------- */
+  header.topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 16px 22px;
+    background: linear-gradient(180deg, rgba(29,36,64,.95), rgba(15,19,32,.4));
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .brand { display: flex; flex-direction: column; margin-right: auto; }
+  .brand h1 { margin: 0; font-size: 1.3rem; letter-spacing: .3px; }
+  .brand p { margin: 2px 0 0; font-size: .8rem; color: var(--muted); }
+
+  .btn {
+    border: none; cursor: pointer; font: inherit; font-weight: 600;
+    color: var(--text); background: var(--panel2);
+    padding: 10px 16px; border-radius: 999px;
+    transition: transform .12s ease, background .15s ease, box-shadow .15s ease;
+    box-shadow: var(--shadow);
+  }
+  .btn:hover { transform: translateY(-2px); background: #2e386a; }
+  .btn:active { transform: translateY(0); }
+  .btn.primary { background: linear-gradient(135deg, #5b6cff, #8b5bff); }
+  .btn.ghost { background: transparent; box-shadow: none; border: 1px solid rgba(255,255,255,.18); }
+
+  .streak {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); padding: 8px 14px; border-radius: 999px;
+    box-shadow: var(--shadow); font-weight: 700;
+  }
+  .streak .flame { font-size: 1.3rem; filter: drop-shadow(0 0 6px #ff922b88); }
+  .streak small { color: var(--muted); font-weight: 500; }
+
+  /* ---------- Main ---------- */
+  main { padding: 24px 22px 60px; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px 16px;
+    margin: 0 auto 22px; max-width: 1100px;
+    font-size: .78rem; color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 13px; height: 13px; border-radius: 4px; display: inline-block; }
+
+  /* ---------- Periodic table grid ---------- */
+  .table-wrap { overflow-x: auto; padding-bottom: 10px; }
+  .ptable {
+    display: grid;
+    grid-template-columns: repeat(18, minmax(46px, 1fr));
+    grid-auto-rows: 54px;
+    gap: 5px;
+    max-width: 1100px;
+    margin: 0 auto;
+    min-width: 900px;
+  }
+  .cell {
+    border-radius: 9px;
+    position: relative;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    cursor: pointer;
+    color: #10131f;
+    font-weight: 700;
+    user-select: none;
+    transition: transform .1s ease, box-shadow .1s ease, filter .1s ease;
+  }
+  .cell .num { position: absolute; top: 3px; left: 5px; font-size: .56rem; opacity: .75; }
+  .cell .sym { font-size: 1.05rem; line-height: 1; }
+  .cell:hover { transform: scale(1.12); z-index: 5; box-shadow: 0 6px 16px rgba(0,0,0,.5); }
+  .cell.locked {
+    background: var(--lock) !important;
+    color: #5b648f; cursor: not-allowed;
+  }
+  .cell.locked .lockicon { position: absolute; bottom: 3px; right: 5px; font-size: .6rem; }
+  .cell.learned::after {
+    content: "✓"; position: absolute; bottom: 2px; right: 5px;
+    font-size: .65rem; color: #0a4d1c; font-weight: 800;
+  }
+
+  .placeholder { background: transparent !important; cursor: default; box-shadow: none; }
+  .placeholder:hover { transform: none; }
+
+  /* ---------- Overlay screens ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(8,10,18,.72);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: flex-start; justify-content: center;
+    padding: 40px 16px; overflow-y: auto;
+  }
+  .overlay.show { display: flex; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .sheet {
+    background: var(--bg2); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 20px; box-shadow: var(--shadow);
+    width: 100%; max-width: 640px; padding: 26px;
+    animation: pop .2s ease;
+  }
+  .sheet.wide { max-width: 820px; }
+  @keyframes pop { from { transform: translateY(14px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+  .sheet h2 { margin: 0 0 4px; }
+  .sheet .sub { color: var(--muted); margin: 0 0 20px; font-size: .9rem; }
+  .sheet-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .sheet-head h2 { margin: 0; margin-right: auto; }
+
+  /* ---------- Session cards ---------- */
+  .session-list { display: grid; gap: 14px; }
+  .session-card {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--panel); border-radius: var(--radius);
+    padding: 16px 18px; border: 1px solid rgba(255,255,255,.06);
+  }
+  .session-card.locked { opacity: .55; }
+  .session-card .badge {
+    width: 48px; height: 48px; border-radius: 12px; flex: none;
+    display: grid; place-items: center; font-weight: 800; font-size: 1.2rem;
+    background: linear-gradient(135deg,#5b6cff,#8b5bff);
+  }
+  .session-card .badge.done { background: linear-gradient(135deg,#2f9e44,#51cf66); }
+  .session-card .badge.lk { background: var(--lock); }
+  .session-info { margin-right: auto; }
+  .session-info b { font-size: 1.02rem; }
+  .session-info .range { color: var(--muted); font-size: .82rem; }
+  .progress { height: 7px; border-radius: 99px; background: #0d1024; margin-top: 8px; width: 180px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; background: linear-gradient(90deg,#51cf66,#94d82d); width: 0; transition: width .4s ease; }
+
+  /* ---------- Learn view tiles ---------- */
+  .learn-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+    gap: 10px;
+  }
+  .learn-tile {
+    border-radius: 12px; padding: 10px 6px; text-align: center;
+    cursor: pointer; color: #10131f; font-weight: 700; position: relative;
+    transition: transform .1s ease;
+  }
+  .learn-tile:hover { transform: translateY(-3px); }
+  .learn-tile .lz { font-size: .6rem; opacity: .7; }
+  .learn-tile .ls { font-size: 1.3rem; line-height: 1.1; }
+  .learn-tile .ln { font-size: .62rem; opacity: .85; }
+  .learn-tile.learned::after { content: "✓"; position: absolute; top: 4px; right: 6px; font-size: .7rem; color: #0a4d1c; }
+
+  /* ---------- Detail ---------- */
+  .detail-top { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+  .big-tile {
+    width: 130px; height: 130px; border-radius: 18px; flex: none;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    color: #10131f; box-shadow: var(--shadow);
+  }
+  .big-tile .bz { font-size: .8rem; opacity: .75; }
+  .big-tile .bs { font-size: 3rem; font-weight: 800; line-height: 1; }
+  .big-tile .bn { font-size: .8rem; font-weight: 600; }
+  .detail-name h2 { margin: 0; font-size: 1.8rem; }
+  .detail-name .cat { color: var(--muted); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0; }
+  .stat { background: var(--panel); border-radius: 12px; padding: 14px; text-align: center; }
+  .stat .v { font-size: 1.7rem; font-weight: 800; }
+  .stat .k { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+  .stat.p .v { color: #ff8787; }
+  .stat.n .v { color: #ffd43b; }
+  .stat.e .v { color: #74c0fc; }
+
+  .meta-row { display: flex; gap: 22px; flex-wrap: wrap; color: var(--muted); font-size: .9rem; margin-bottom: 18px; }
+  .meta-row b { color: var(--text); }
+
+  /* atom diagram */
+  .atom { display: block; margin: 6px auto 0; }
+  .atom-wrap { text-align: center; }
+  .atom-wrap .cap { font-size: .72rem; color: var(--muted); }
+
+  /* ---------- Subatomic lesson ---------- */
+  .particle-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .particle-table th, .particle-table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: .92rem; }
+  .particle-table th { color: var(--muted); font-weight: 600; }
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 99px; font-weight: 700; font-size: .8rem; }
+  .chip.pos { background: #ff8787; color: #3a0c0c; }
+  .chip.neu { background: #ffe066; color: #4a3a00; }
+  .chip.neg { background: #74c0fc; color: #062a4a; }
+
+  /* ---------- Congrats ---------- */
+  #congrats .sheet { text-align: center; max-width: 460px; }
+  #congrats .emoji { font-size: 4rem; animation: bounce 1s infinite alternate; }
+  @keyframes bounce { to { transform: translateY(-12px); } }
+  .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 200; overflow: hidden; }
+  .confetti i {
+    position: absolute; top: -12px; width: 9px; height: 14px; opacity: .9;
+    animation: fall linear forwards;
+  }
+  @keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: 1; } }
+
+  .footer-note { text-align: center; color: var(--muted); font-size: .75rem; margin-top: 26px; }
+
+  @media (max-width: 560px) {
+    .brand h1 { font-size: 1.05rem; }
+    .stats { grid-template-columns: 1fr 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <h1 id="appTitle">Periodic Table Explorer</h1>
+    <p id="appSub">Learn all 118 elements</p>
+  </div>
+  <div class="streak" title="Daily streak">
+    <span class="flame">🔥</span>
+    <span><span id="streakNum">0</span> <small id="streakLbl">day streak</small></span>
+  </div>
+  <button class="btn primary" id="sessionsBtn">📚 <span>Sessions</span></button>
+  <button class="btn" id="subatomicBtn">🔬 <span>Subatomic Particles</span></button>
+  <button class="btn ghost" id="langBtn">🌐 Tiếng Việt</button>
+</header>
+
+<main>
+  <div class="legend" id="legend"></div>
+  <div class="table-wrap">
+    <div class="ptable" id="ptable"></div>
+  </div>
+  <p class="footer-note" id="footNote">Tap an unlocked element to see its details. Complete sessions to unlock more!</p>
+</main>
+
+<!-- Sessions overlay -->
+<div class="overlay" id="sessionsView" data-close>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="sessionsTitle">Choose a Session</h2>
+      <button class="btn ghost" data-close-btn id="sessClose">Close</button>
+    </div>
+    <div class="session-list" id="sessionList"></div>
+  </div>
+</div>
+
+<!-- Learn (single session) overlay -->
+<div class="overlay" id="learnView" data-close>
+  <div class="sheet wide">
+    <div class="sheet-head">
+      <button class="btn ghost" id="learnBack">← <span data-i="back">Back</span></button>
+      <h2 id="learnTitle" style="margin-left:6px;"></h2>
+      <button class="btn ghost" data-close-btn>✕</button>
+    </div>
+    <p class="sub" id="learnHint"></p>
+    <div class="learn-grid" id="learnGrid"></div>
+  </div>
+</div>
+
+<!-- Element detail overlay -->
+<div class="overlay" id="detailView" data-close>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 style="margin-right:auto;font-size:1.1rem;color:var(--muted)" data-i="atomTitle">Element details</h2>
+      <button class="btn ghost" data-close-btn>✕</button>
+    </div>
+    <div id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Subatomic particles overlay -->
+<div class="overlay" id="subView" data-close>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="subTitle">Subatomic Particles</h2>
+      <button class="btn ghost" data-close-btn>✕</button>
+    </div>
+    <p class="sub" id="subIntro"></p>
+    <table class="particle-table">
+      <thead><tr>
+        <th data-i="th_particle">Particle</th>
+        <th data-i="th_charge">Charge</th>
+        <th data-i="th_location">Location</th>
+        <th data-i="th_role">Role</th>
+      </tr></thead>
+      <tbody id="subBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Congrats overlay -->
+<div class="overlay" id="congrats">
+  <div class="sheet">
+    <div class="emoji">🎉</div>
+    <h2 id="congTitle">Congratulations!</h2>
+    <p class="sub" id="congMsg"></p>
+    <p id="congNext" style="color:var(--good);font-weight:700"></p>
+    <button class="btn primary" id="congBtn" style="margin-top:8px">Continue</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   ELEMENT DATA  — z, symbol, EN name, VI name, atomic mass,
+   category, grid column, grid row
+   ========================================================= */
+const E = [
+  [1,"H","Hydrogen","Hydro",1.008,"nonmetal",1,1],
+  [2,"He","Helium","Heli",4.0026,"noble",18,1],
+  [3,"Li","Lithium","Liti",6.94,"alkali",1,2],
+  [4,"Be","Beryllium","Beri",9.0122,"alkaline",2,2],
+  [5,"B","Boron","Bo",10.81,"metalloid",13,2],
+  [6,"C","Carbon","Cacbon",12.011,"nonmetal",14,2],
+  [7,"N","Nitrogen","Nitơ",14.007,"nonmetal",15,2],
+  [8,"O","Oxygen","Oxi",15.999,"nonmetal",16,2],
+  [9,"F","Fluorine","Flo",18.998,"halogen",17,2],
+  [10,"Ne","Neon","Neon",20.180,"noble",18,2],
+  [11,"Na","Sodium","Natri",22.990,"alkali",1,3],
+  [12,"Mg","Magnesium","Magie",24.305,"alkaline",2,3],
+  [13,"Al","Aluminium","Nhôm",26.982,"post",13,3],
+  [14,"Si","Silicon","Silic",28.085,"metalloid",14,3],
+  [15,"P","Phosphorus","Photpho",30.974,"nonmetal",15,3],
+  [16,"S","Sulfur","Lưu huỳnh",32.06,"nonmetal",16,3],
+  [17,"Cl","Chlorine","Clo",35.45,"halogen",17,3],
+  [18,"Ar","Argon","Argon",39.95,"noble",18,3],
+  [19,"K","Potassium","Kali",39.098,"alkali",1,4],
+  [20,"Ca","Calcium","Canxi",40.078,"alkaline",2,4],
+  [21,"Sc","Scandium","Scandi",44.956,"transition",3,4],
+  [22,"Ti","Titanium","Titan",47.867,"transition",4,4],
+  [23,"V","Vanadium","Vanadi",50.942,"transition",5,4],
+  [24,"Cr","Chromium","Crom",51.996,"transition",6,4],
+  [25,"Mn","Manganese","Mangan",54.938,"transition",7,4],
+  [26,"Fe","Iron","Sắt",55.845,"transition",8,4],
+  [27,"Co","Cobalt","Coban",58.933,"transition",9,4],
+  [28,"Ni","Nickel","Niken",58.693,"transition",10,4],
+  [29,"Cu","Copper","Đồng",63.546,"transition",11,4],
+  [30,"Zn","Zinc","Kẽm",65.38,"transition",12,4],
+  [31,"Ga","Gallium","Gali",69.723,"post",13,4],
+  [32,"Ge","Germanium","Gecmani",72.630,"metalloid",14,4],
+  [33,"As","Arsenic","Asen",74.922,"metalloid",15,4],
+  [34,"Se","Selenium","Selen",78.971,"nonmetal",16,4],
+  [35,"Br","Bromine","Brom",79.904,"halogen",17,4],
+  [36,"Kr","Krypton","Krypton",83.798,"noble",18,4],
+  [37,"Rb","Rubidium","Rubidi",85.468,"alkali",1,5],
+  [38,"Sr","Strontium","Stronti",87.62,"alkaline",2,5],
+  [39,"Y","Yttrium","Ytri",88.906,"transition",3,5],
+  [40,"Zr","Zirconium","Zirconi",91.224,"transition",4,5],
+  [41,"Nb","Niobium","Niobi",92.906,"transition",5,5],
+  [42,"Mo","Molybdenum","Molypden",95.95,"transition",6,5],
+  [43,"Tc","Technetium","Tecneti",98,"transition",7,5],
+  [44,"Ru","Ruthenium","Rutheni",101.07,"transition",8,5],
+  [45,"Rh","Rhodium","Rhodi",102.91,"transition",9,5],
+  [46,"Pd","Palladium","Paladi",106.42,"transition",10,5],
+  [47,"Ag","Silver","Bạc",107.87,"transition",11,5],
+  [48,"Cd","Cadmium","Cadimi",112.41,"transition",12,5],
+  [49,"In","Indium","Indi",114.82,"post",13,5],
+  [50,"Sn","Tin","Thiếc",118.71,"post",14,5],
+  [51,"Sb","Antimony","Antimon",121.76,"metalloid",15,5],
+  [52,"Te","Tellurium","Telua",127.60,"metalloid",16,5],
+  [53,"I","Iodine","Iot",126.90,"halogen",17,5],
+  [54,"Xe","Xenon","Xenon",131.29,"noble",18,5],
+  [55,"Cs","Caesium","Xesi",132.91,"alkali",1,6],
+  [56,"Ba","Barium","Bari",137.33,"alkaline",2,6],
+  [57,"La","Lanthanum","Lantan",138.91,"lanthanide",3,9],
+  [58,"Ce","Cerium","Xeri",140.12,"lanthanide",4,9],
+  [59,"Pr","Praseodymium","Praseodim",140.91,"lanthanide",5,9],
+  [60,"Nd","Neodymium","Neodim",144.24,"lanthanide",6,9],
+  [61,"Pm","Promethium","Prometi",145,"lanthanide",7,9],
+  [62,"Sm","Samarium","Samari",150.36,"lanthanide",8,9],
+  [63,"Eu","Europium","Europi",151.96,"lanthanide",9,9],
+  [64,"Gd","Gadolinium","Gadolini",157.25,"lanthanide",10,9],
+  [65,"Tb","Terbium","Tecbi",158.93,"lanthanide",11,9],
+  [66,"Dy","Dysprosium","Dysprosi",162.50,"lanthanide",12,9],
+  [67,"Ho","Holmium","Honmi",164.93,"lanthanide",13,9],
+  [68,"Er","Erbium","Ecbi",167.26,"lanthanide",14,9],
+  [69,"Tm","Thulium","Thuli",168.93,"lanthanide",15,9],
+  [70,"Yb","Ytterbium","Ytecbi",173.05,"lanthanide",16,9],
+  [71,"Lu","Lutetium","Luteti",174.97,"lanthanide",17,9],
+  [72,"Hf","Hafnium","Hafini",178.49,"transition",4,6],
+  [73,"Ta","Tantalum","Tantan",180.95,"transition",5,6],
+  [74,"W","Tungsten","Vonfram",183.84,"transition",6,6],
+  [75,"Re","Rhenium","Reni",186.21,"transition",7,6],
+  [76,"Os","Osmium","Osmi",190.23,"transition",8,6],
+  [77,"Ir","Iridium","Iridi",192.22,"transition",9,6],
+  [78,"Pt","Platinum","Bạch kim",195.08,"transition",10,6],
+  [79,"Au","Gold","Vàng",196.97,"transition",11,6],
+  [80,"Hg","Mercury","Thủy ngân",200.59,"transition",12,6],
+  [81,"Tl","Thallium","Tali",204.38,"post",13,6],
+  [82,"Pb","Lead","Chì",207.2,"post",14,6],
+  [83,"Bi","Bismuth","Bitmut",208.98,"post",15,6],
+  [84,"Po","Polonium","Poloni",209,"post",16,6],
+  [85,"At","Astatine","Astatin",210,"halogen",17,6],
+  [86,"Rn","Radon","Radon",222,"noble",18,6],
+  [87,"Fr","Francium","Franxi",223,"alkali",1,7],
+  [88,"Ra","Radium","Radi",226,"alkaline",2,7],
+  [89,"Ac","Actinium","Actini",227,"actinide",3,10],
+  [90,"Th","Thorium","Thori",232.04,"actinide",4,10],
+  [91,"Pa","Protactinium","Protactini",231.04,"actinide",5,10],
+  [92,"U","Uranium","Urani",238.03,"actinide",6,10],
+  [93,"Np","Neptunium","Neptuni",237,"actinide",7,10],
+  [94,"Pu","Plutonium","Plutoni",244,"actinide",8,10],
+  [95,"Am","Americium","Americi",243,"actinide",9,10],
+  [96,"Cm","Curium","Curi",247,"actinide",10,10],
+  [97,"Bk","Berkelium","Berkeli",247,"actinide",11,10],
+  [98,"Cf","Californium","Califoni",251,"actinide",12,10],
+  [99,"Es","Einsteinium","Einsteini",252,"actinide",13,10],
+  [100,"Fm","Fermium","Fermi",257,"actinide",14,10],
+  [101,"Md","Mendelevium","Mendelevi",258,"actinide",15,10],
+  [102,"No","Nobelium","Nobeli",259,"actinide",16,10],
+  [103,"Lr","Lawrencium","Lorenxi",262,"actinide",17,10],
+  [104,"Rf","Rutherfordium","Rutherfordi",267,"transition",4,7],
+  [105,"Db","Dubnium","Dubni",270,"transition",5,7],
+  [106,"Sg","Seaborgium","Seaborgi",271,"transition",6,7],
+  [107,"Bh","Bohrium","Bohri",270,"transition",7,7],
+  [108,"Hs","Hassium","Hassi",277,"transition",8,7],
+  [109,"Mt","Meitnerium","Meitneri",276,"transition",9,7],
+  [110,"Ds","Darmstadtium","Darmstadti",281,"transition",10,7],
+  [111,"Rg","Roentgenium","Roentgeni",282,"transition",11,7],
+  [112,"Cn","Copernicium","Copernici",285,"transition",12,7],
+  [113,"Nh","Nihonium","Nihoni",286,"post",13,7],
+  [114,"Fl","Flerovium","Flerovi",289,"post",14,7],
+  [115,"Mc","Moscovium","Moscovi",290,"post",15,7],
+  [116,"Lv","Livermorium","Livermori",293,"post",16,7],
+  [117,"Ts","Tennessine","Tennessin",294,"halogen",17,7],
+  [118,"Og","Oganesson","Oganesson",294,"noble",18,7],
+].map(a => ({ z:a[0], sym:a[1], en:a[2], vi:a[3], mass:a[4], cat:a[5], col:a[6], row:a[7] }));
+
+const CAT_COLOR = {
+  alkali:"--c-alkali", alkaline:"--c-alkaline", transition:"--c-transition",
+  post:"--c-post", metalloid:"--c-metalloid", nonmetal:"--c-nonmetal",
+  halogen:"--c-halogen", noble:"--c-noble", lanthanide:"--c-lanthanide", actinide:"--c-actinide"
+};
+const color = el => `var(${CAT_COLOR[el.cat]})`;
+
+/* =========================================================
+   TRANSLATIONS
+   ========================================================= */
+const I18N = {
+  en: {
+    title:"Periodic Table Explorer", sub:"Learn all 118 elements",
+    sessions:"Sessions", subatomic:"Subatomic Particles", langBtn:"🌐 Tiếng Việt",
+    streak:"day streak", chooseSession:"Choose a Session", close:"Close", back:"Back",
+    foot:"Tap an unlocked element to see its details. Complete sessions to unlock more!",
+    session:"Session", learned:"learned", locked:"Locked", completed:"Completed ✓",
+    start:"Start", relearn:"Relearn", continue:"Continue",
+    learnHint:"Tap each element to study it, then mark it as learned.",
+    markLearned:"Mark as learned", alreadyLearned:"Learned ✓",
+    protons:"Protons", neutrons:"Neutrons", electrons:"Electrons",
+    atomicMass:"Atomic mass", atomicNumber:"Atomic number", categoryLbl:"Category",
+    atomTitle:"Element details", atomCap:"Simplified atom model",
+    subTitle:"Subatomic Particles",
+    subIntro:"Every atom is built from three particles. These are the numbers you see on each element card.",
+    th_particle:"Particle", th_charge:"Charge", th_location:"Location", th_role:"Role",
+    congrats:"Congratulations!", congMsg:"You completed {s}!",
+    nextUnlocked:"Next session unlocked! 🔓", allDone:"You've mastered the whole table! 🏆",
+    cats:{ alkali:"Alkali metal", alkaline:"Alkaline earth metal", transition:"Transition metal",
+      post:"Post-transition metal", metalloid:"Metalloid", nonmetal:"Nonmetal",
+      halogen:"Halogen", noble:"Noble gas", lanthanide:"Lanthanide", actinide:"Actinide" },
+    particles:[
+      ["Proton","pos","positive (+)","Nucleus","Its count is the atomic number and defines the element."],
+      ["Neutron","neu","neutral (0)","Nucleus","Adds mass to the atom; changes isotopes."],
+      ["Electron","neg","negative (−)","Shells around the nucleus","Equals the number of protons in a neutral atom."]
+    ]
+  },
+  vi: {
+    title:"Khám Phá Bảng Tuần Hoàn", sub:"Học tất cả 118 nguyên tố",
+    sessions:"Bài học", subatomic:"Hạt cấu tạo", langBtn:"🌐 English",
+    streak:"ngày liên tục", chooseSession:"Chọn bài học", close:"Đóng", back:"Quay lại",
+    foot:"Chạm vào nguyên tố đã mở khoá để xem chi tiết. Hoàn thành bài học để mở thêm!",
+    session:"Bài", learned:"đã học", locked:"Đã khoá", completed:"Hoàn thành ✓",
+    start:"Bắt đầu", relearn:"Học lại", continue:"Tiếp tục",
+    learnHint:"Chạm vào từng nguyên tố để học, rồi đánh dấu đã học.",
+    markLearned:"Đánh dấu đã học", alreadyLearned:"Đã học ✓",
+    protons:"Proton", neutrons:"Neutron", electrons:"Electron",
+    atomicMass:"Khối lượng nguyên tử", atomicNumber:"Số hiệu nguyên tử", categoryLbl:"Nhóm",
+    atomTitle:"Chi tiết nguyên tố", atomCap:"Mô hình nguyên tử đơn giản",
+    subTitle:"Hạt cấu tạo nguyên tử",
+    subIntro:"Mỗi nguyên tử được tạo từ ba loại hạt. Đây chính là các con số em thấy trên mỗi thẻ nguyên tố.",
+    th_particle:"Hạt", th_charge:"Điện tích", th_location:"Vị trí", th_role:"Vai trò",
+    congrats:"Chúc mừng!", congMsg:"Em đã hoàn thành {s}!",
+    nextUnlocked:"Đã mở khoá bài tiếp theo! 🔓", allDone:"Em đã chinh phục cả bảng tuần hoàn! 🏆",
+    cats:{ alkali:"Kim loại kiềm", alkaline:"Kim loại kiềm thổ", transition:"Kim loại chuyển tiếp",
+      post:"Kim loại sau chuyển tiếp", metalloid:"Á kim", nonmetal:"Phi kim",
+      halogen:"Halogen", noble:"Khí hiếm", lanthanide:"Họ Lantan", actinide:"Họ Actini" },
+    particles:[
+      ["Proton","pos","dương (+)","Hạt nhân","Số proton là số hiệu nguyên tử và xác định nguyên tố."],
+      ["Neutron","neu","trung hoà (0)","Hạt nhân","Tăng khối lượng nguyên tử; tạo ra đồng vị."],
+      ["Electron","neg","âm (−)","Các lớp quanh hạt nhân","Bằng số proton trong nguyên tử trung hoà."]
+    ]
+  }
+};
+
+/* =========================================================
+   STATE  (persisted in localStorage)
+   ========================================================= */
+const SESSION_SIZE = 20;
+const SESSION_COUNT = 6;            // 5 × 20 + 18 = 118
+const sessionOf = z => Math.min(SESSION_COUNT, Math.floor((z - 1) / SESSION_SIZE) + 1);
+const elementsOf = s => E.filter(el => sessionOf(el.z) === s);
+
+const KEY = "ptable.save.v1";
+const defaultState = { lang:"en", learned:[], unlocked:1, streak:0, lastStudy:null };
+let S = load();
+
+function load() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY));
+    if (!raw) return { ...defaultState };
+    const s = { ...defaultState, ...raw };
+    s.learnedSet = new Set(s.learned);
+    // streak broken if last study wasn't today or yesterday
+    if (s.lastStudy && s.lastStudy !== today() && s.lastStudy !== yesterday()) { s.streak = 0; s.lastStudy = null; }
+    return s;
+  } catch { return { ...defaultState, learnedSet:new Set() }; }
+}
+function save() {
+  S.learned = [...S.learnedSet];
+  localStorage.setItem(KEY, JSON.stringify({
+    lang:S.lang, learned:S.learned, unlocked:S.unlocked, streak:S.streak, lastStudy:S.lastStudy
+  }));
+}
+if (!S.learnedSet) S.learnedSet = new Set(S.learned);
+
+function ymd(d) { const p = n => String(n).padStart(2, "0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+function today() { return ymd(new Date()); }
+function yesterday() { const d = new Date(); d.setDate(d.getDate()-1); return ymd(d); }
+
+/* Record a study action — keeps the daily streak alive (relearn counts too). */
+function registerStudyDay() {
+  if (S.lastStudy === today()) return;
+  S.streak = (S.lastStudy === yesterday()) ? S.streak + 1 : 1;
+  S.lastStudy = today();
+}
+
+const t = () => I18N[S.lang];
+const name = el => S.lang === "vi" ? el.vi : el.en;
+
+/* =========================================================
+   RENDER — header, legend, periodic table
+   ========================================================= */
+const $ = id => document.getElementById(id);
+
+function applyStaticText() {
+  const L = t();
+  $("appTitle").textContent = L.title;
+  $("appSub").textContent = L.sub;
+  $("streakLbl").textContent = L.streak;
+  $("sessionsBtn").querySelector("span").textContent = L.sessions;
+  $("subatomicBtn").querySelector("span").textContent = L.subatomic;
+  $("langBtn").textContent = L.langBtn;
+  $("footNote").textContent = L.foot;
+  $("sessionsTitle").textContent = L.chooseSession;
+  $("sessClose").textContent = L.close;
+  $("subTitle").textContent = L.subTitle;
+  $("subIntro").textContent = L.subIntro;
+  $("congTitle").textContent = L.congrats;
+  $("congBtn").textContent = L.continue;
+  document.querySelectorAll("[data-i]").forEach(n => { n.textContent = L[n.dataset.i]; });
+}
+
+function renderHeader() { $("streakNum").textContent = S.streak; }
+
+function renderLegend() {
+  const L = t();
+  $("legend").innerHTML = Object.keys(CAT_COLOR).map(c =>
+    `<span><i style="background:var(${CAT_COLOR[c]})"></i>${L.cats[c]}</span>`).join("");
+}
+
+function renderTable() {
+  const grid = $("ptable");
+  grid.innerHTML = "";
+  // marker tiles where lanthanides / actinides sit in the main body
+  const markers = [
+    { col:3, row:6, txt:"57–71" },
+    { col:3, row:7, txt:"89–103" }
+  ];
+  markers.forEach(m => {
+    const d = document.createElement("div");
+    d.className = "cell"; d.style.gridColumn = m.col; d.style.gridRow = m.row;
+    d.style.background = "#2a3050"; d.style.color = "#8b94c4"; d.style.fontSize = ".62rem";
+    d.style.cursor = "default"; d.textContent = m.txt;
+    d.onmouseenter = null;
+    grid.appendChild(d);
+  });
+  E.forEach(el => {
+    const cell = document.createElement("div");
+    const unlocked = sessionOf(el.z) <= S.unlocked;
+    cell.className = "cell" + (unlocked ? "" : " locked") + (S.learnedSet.has(el.z) ? " learned" : "");
+    cell.style.gridColumn = el.col;
+    cell.style.gridRow = el.row;
+    if (unlocked) cell.style.background = color(el);
+    cell.innerHTML = `<span class="num">${el.z}</span><span class="sym">${el.sym}</span>` +
+      (unlocked ? "" : `<span class="lockicon">🔒</span>`);
+    if (unlocked) cell.onclick = () => openDetail(el);
+    grid.appendChild(cell);
+  });
+}
+
+/* =========================================================
+   SESSIONS
+   ========================================================= */
+function openSessions() {
+  const L = t();
+  const list = $("sessionList");
+  list.innerHTML = "";
+  for (let s = 1; s <= SESSION_COUNT; s++) {
+    const els = elementsOf(s);
+    const learnedCount = els.filter(e => S.learnedSet.has(e.z)).length;
+    const unlocked = s <= S.unlocked;
+    const done = learnedCount === els.length;
+    const first = els[0].z, last = els[els.length - 1].z;
+    const pct = Math.round(learnedCount / els.length * 100);
+
+    const card = document.createElement("div");
+    card.className = "session-card" + (unlocked ? "" : " locked");
+    const badge = done ? "badge done" : (unlocked ? "badge" : "badge lk");
+    const action = !unlocked
+      ? `<span style="color:var(--muted)">🔒 ${L.locked}</span>`
+      : `<button class="btn primary">${done ? L.relearn : (learnedCount ? L.continue : L.start)}</button>`;
+    card.innerHTML = `
+      <div class="${badge}">${unlocked ? (done ? "✓" : s) : "🔒"}</div>
+      <div class="session-info">
+        <b>${L.session} ${s}</b> <span class="range">(${first}–${last})</span>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:2px">
+          ${learnedCount}/${els.length} ${L.learned}${done ? " · " + L.completed : ""}</div>
+        <div class="progress"><i style="width:${pct}%"></i></div>
+      </div>
+      <div>${action}</div>`;
+    if (unlocked) {
+      const btn = card.querySelector("button");
+      btn.onclick = () => { close("sessionsView"); openLearn(s); };
+    }
+    list.appendChild(card);
+  }
+  show("sessionsView");
+}
+
+function openLearn(s) {
+  const L = t();
+  const els = elementsOf(s);
+  $("learnTitle").textContent = `${L.session} ${s} · ${els[0].z}–${els[els.length-1].z}`;
+  $("learnHint").textContent = L.learnHint;
+  const grid = $("learnGrid");
+  grid.innerHTML = "";
+  els.forEach(el => {
+    const tile = document.createElement("div");
+    tile.className = "learn-tile" + (S.learnedSet.has(el.z) ? " learned" : "");
+    tile.style.background = color(el);
+    tile.innerHTML = `<div class="lz">${el.z}</div><div class="ls">${el.sym}</div><div class="ln">${name(el)}</div>`;
+    tile.onclick = () => openDetail(el, s);
+    grid.appendChild(tile);
+  });
+  show("learnView");
+}
+
+/* =========================================================
+   ELEMENT DETAIL
+   ========================================================= */
+function openDetail(el, fromSession) {
+  const L = t();
+  const protons = el.z;
+  const electrons = el.z;
+  const neutrons = Math.round(el.mass) - el.z;
+  const isLearned = S.learnedSet.has(el.z);
+
+  $("detailBody").innerHTML = `
+    <div class="detail-top">
+      <div class="big-tile" style="background:${color(el)}">
+        <span class="bz">${el.z}</span><span class="bs">${el.sym}</span><span class="bn">${name(el)}</span>
+      </div>
+      <div class="detail-name">
+        <h2>${name(el)}</h2>
+        <div class="cat">${L.cats[el.cat]}</div>
+        <div class="atom-wrap">${atomSVG(electrons)}<div class="cap">${L.atomCap}</div></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat p"><div class="v">${protons}</div><div class="k">${L.protons}</div></div>
+      <div class="stat n"><div class="v">${neutrons}</div><div class="k">${L.neutrons}</div></div>
+      <div class="stat e"><div class="v">${electrons}</div><div class="k">${L.electrons}</div></div>
+    </div>
+    <div class="meta-row">
+      <span>${L.atomicNumber}: <b>${el.z}</b></span>
+      <span>${L.atomicMass}: <b>${el.mass} amu</b></span>
+      <span>${L.categoryLbl}: <b>${L.cats[el.cat]}</b></span>
+    </div>
+    <button class="btn primary" id="markBtn">
+      ${isLearned ? "↻ " + L.relearn : L.markLearned}
+    </button>
+    <span id="learnedTag" style="margin-left:12px;color:var(--good);font-weight:700;${isLearned?"":"display:none"}">
+      ${L.alreadyLearned}</span>`;
+
+  $("markBtn").onclick = () => { markLearned(el); if (fromSession) openLearn(fromSession); else renderTable(); };
+  show("detailView");
+}
+
+/* simple concentric-shell atom diagram */
+function atomSVG(electrons) {
+  const caps = [2,8,18,32,32,18,8];
+  const shells = []; let left = electrons;
+  for (const c of caps) { if (left <= 0) break; shells.push(Math.min(c, left)); left -= c; }
+  const size = 132, cx = size/2, cy = size/2;
+  let svg = `<svg class="atom" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+  svg += `<circle cx="${cx}" cy="${cy}" r="10" fill="#ff8787"/>`;
+  shells.forEach((count, i) => {
+    const r = 20 + i * ((cx - 22) / shells.length);
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(116,192,252,.4)" stroke-width="1"/>`;
+    for (let k = 0; k < count; k++) {
+      const ang = (2 * Math.PI * k) / count - Math.PI/2;
+      const ex = cx + r * Math.cos(ang), ey = cy + r * Math.sin(ang);
+      svg += `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="2.6" fill="#74c0fc"/>`;
+    }
+  });
+  svg += `</svg>`;
+  return svg;
+}
+
+function markLearned(el) {
+  const wasLearned = S.learnedSet.has(el.z);
+  S.learnedSet.add(el.z);
+  registerStudyDay();          // counts toward streak (including relearn)
+  renderHeader();
+
+  // check session completion only for genuinely new completions
+  const s = sessionOf(el.z);
+  const els = elementsOf(s);
+  const complete = els.every(e => S.learnedSet.has(e.z));
+  let unlockedNew = false;
+  if (complete && s === S.unlocked && s < SESSION_COUNT) { S.unlocked = s + 1; unlockedNew = true; }
+  save();
+
+  if (!wasLearned && complete) { close("detailView"); close("learnView"); celebrate(s, unlockedNew); }
+}
+
+/* =========================================================
+   SUBATOMIC PARTICLES LESSON
+   ========================================================= */
+function openSubatomic() {
+  const L = t();
+  $("subBody").innerHTML = L.particles.map(p =>
+    `<tr><td><b>${p[0]}</b></td><td><span class="chip ${p[1]}">${p[2]}</span></td><td>${p[3]}</td><td>${p[4]}</td></tr>`
+  ).join("");
+  show("subView");
+}
+
+/* =========================================================
+   CONGRATULATIONS + confetti
+   ========================================================= */
+function celebrate(s, unlockedNew) {
+  const L = t();
+  $("congMsg").textContent = L.congMsg.replace("{s}", `${L.session} ${s}`);
+  $("congNext").textContent = unlockedNew ? L.nextUnlocked : (s === SESSION_COUNT ? L.allDone : "");
+  show("congrats");
+  confetti();
+}
+function confetti() {
+  const box = document.createElement("div");
+  box.className = "confetti";
+  const colors = ["#ff6b6b","#ffd43b","#51cf66","#4dabf7","#da77f2","#ff922b"];
+  for (let i = 0; i < 90; i++) {
+    const piece = document.createElement("i");
+    piece.style.left = (Math.random() * 100) + "vw";
+    piece.style.background = colors[i % colors.length];
+    piece.style.animationDuration = (2 + Math.random() * 2) + "s";
+    piece.style.animationDelay = (Math.random() * .6) + "s";
+    box.appendChild(piece);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 4200);
+}
+
+/* =========================================================
+   OVERLAY HELPERS + WIRING
+   ========================================================= */
+function show(id) { $(id).classList.add("show"); }
+function close(id) { $(id).classList.remove("show"); }
+
+document.querySelectorAll(".overlay[data-close]").forEach(ov => {
+  ov.addEventListener("click", e => { if (e.target === ov) close(ov.id); });
+});
+document.querySelectorAll("[data-close-btn]").forEach(b => {
+  b.addEventListener("click", () => close(b.closest(".overlay").id));
+});
+$("learnBack").onclick = () => { close("learnView"); openSessions(); };
+$("sessionsBtn").onclick = openSessions;
+$("subatomicBtn").onclick = openSubatomic;
+$("congBtn").onclick = () => { close("congrats"); renderTable(); openSessions(); };
+$("langBtn").onclick = () => {
+  S.lang = S.lang === "en" ? "vi" : "en"; save();
+  document.documentElement.lang = S.lang;
+  renderAll();
+};
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") document.querySelectorAll(".overlay.show").forEach(o => close(o.id));
+});
+
+function renderAll() {
+  applyStaticText();
+  renderHeader();
+  renderLegend();
+  renderTable();
+}
+
+renderAll();
+</script>
+</body>
+</html>
