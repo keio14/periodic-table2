@@ -1,821 +1,581 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Periodic Table Explorer</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Daily Spark — Motivation</title>
 <style>
   :root {
-    --bg:#0f1320; --bg2:#161b2e; --panel:#1d2440; --panel2:#252d52;
-    --text:#eef1fb; --muted:#9aa3c7; --accent:#ffd43b; --good:#51cf66;
-    --lock:#2a3050; --radius:14px; --shadow:0 8px 24px rgba(0,0,0,.35);
-    --c-alkali:#ff6b6b; --c-alkaline:#ff922b; --c-transition:#ffd43b;
-    --c-post:#94d82d; --c-metalloid:#20c997; --c-nonmetal:#4dabf7;
-    --c-halogen:#748ffc; --c-noble:#da77f2; --c-lanthanide:#f783ac; --c-actinide:#e599f7;
+    --gold: #ffd34d;
+    --classic: #ffcf6b;
+    --modern: #8ff0c4;
+    --ink: #ffffff;
   }
-  *{box-sizing:border-box;} html,body{margin:0;padding:0;}
-  body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
-    background:radial-gradient(1200px 700px at 70% -10%,#20284a 0%,var(--bg) 55%);
-    color:var(--text);min-height:100vh;}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--ink);
+    overflow: hidden; /* the .feed scrolls, not the body */
+    background: #14432f;
+  }
 
-  header.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 22px;
-    background:linear-gradient(180deg,rgba(29,36,64,.95),rgba(15,19,32,.4));
-    position:sticky;top:0;z-index:50;backdrop-filter:blur(6px);border-bottom:1px solid rgba(255,255,255,.06);}
-  .brand{display:flex;flex-direction:column;margin-right:auto;}
-  .brand h1{margin:0;font-size:1.3rem;letter-spacing:.3px;}
-  .brand p{margin:2px 0 0;font-size:.8rem;color:var(--muted);}
+  /* ---------- Rainforest hiking background (fixed, SVG-drawn) ---------- */
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  #scene svg { width: 100%; height: 100%; display: block; }
 
-  .btn{border:none;cursor:pointer;font:inherit;font-weight:600;color:var(--text);background:var(--panel2);
-    padding:10px 16px;border-radius:999px;transition:transform .12s,background .15s,box-shadow .15s;box-shadow:var(--shadow);}
-  .btn:hover{transform:translateY(-2px);background:#2e386a;}
-  .btn:active{transform:translateY(0);}
-  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;}
-  .btn.primary{background:linear-gradient(135deg,#5b6cff,#8b5bff);}
-  .btn.ghost{background:transparent;box-shadow:none;border:1px solid rgba(255,255,255,.18);}
-  .btn.danger{background:linear-gradient(135deg,#ff6b6b,#ff922b);}
+  /* ---------- Top bar ---------- */
+  header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: max(14px, env(safe-area-inset-top)) 20px 14px;
+  }
+  .brand {
+    font-size: clamp(1.05rem, 3.5vw, 1.35rem);
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.45);
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(8, 30, 20, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  }
+  .pill small { font-weight: 500; opacity: 0.8; }
 
-  .streak{display:flex;align-items:center;gap:8px;background:var(--panel);padding:8px 14px;border-radius:999px;box-shadow:var(--shadow);font-weight:700;}
-  .streak .flame{font-size:1.3rem;filter:drop-shadow(0 0 6px #ff922b88);}
-  .streak small{color:var(--muted);font-weight:500;}
+  /* ---------- Paged feed (one quote per screen, snap scroll) ---------- */
+  .feed {
+    position: relative;
+    z-index: 10;
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .page {
+    height: 100vh;
+    height: 100dvh;
+    scroll-snap-align: start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(72px, 12vh, 120px) 18px clamp(40px, 8vh, 80px);
+  }
 
-  main{padding:24px 22px 60px;}
-  .legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin:0 auto 22px;max-width:1100px;font-size:.78rem;color:var(--muted);}
-  .legend span{display:inline-flex;align-items:center;gap:6px;}
-  .legend i{width:13px;height:13px;border-radius:4px;display:inline-block;}
+  /* ---------- Glass quote card ---------- */
+  .card {
+    width: min(92%, 680px);
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto;
+    background: rgba(8, 30, 20, 0.42);
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 26px;
+    padding: clamp(24px, 5vw, 46px);
+    box-shadow: 0 22px 55px rgba(0,0,0,0.4);
+    text-align: center;
+    opacity: 1;
+    animation: fade 0.7s ease;
+  }
+  @keyframes fade { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 
-  .table-wrap{overflow-x:auto;padding-bottom:10px;}
-  .ptable{display:grid;grid-template-columns:repeat(18,minmax(46px,1fr));grid-auto-rows:54px;gap:5px;max-width:1100px;margin:0 auto;min-width:900px;}
-  .cell{border-radius:9px;position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;
-    cursor:pointer;color:#10131f;font-weight:700;user-select:none;transition:transform .1s,box-shadow .1s,filter .1s;}
-  .cell .num{position:absolute;top:3px;left:5px;font-size:.56rem;opacity:.75;}
-  .cell .sym{font-size:1.05rem;line-height:1;}
-  .cell:hover{transform:scale(1.12);z-index:5;box-shadow:0 6px 16px rgba(0,0,0,.5);}
-  .cell.locked{background:var(--lock)!important;color:#5b648f;cursor:not-allowed;}
-  .cell.locked .lockicon{position:absolute;bottom:3px;right:5px;font-size:.6rem;}
-  .cell.learned::after{content:"✓";position:absolute;bottom:2px;right:5px;font-size:.65rem;color:#0a4d1c;font-weight:800;}
+  .badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    padding: 6px 13px;
+    border-radius: 999px;
+    color: #0d2a1d;
+    margin-bottom: 20px;
+  }
+  .badge.classic { background: var(--classic); }
+  .badge.modern  { background: var(--modern); }
 
-  .overlay{position:fixed;inset:0;z-index:100;background:rgba(8,10,18,.72);backdrop-filter:blur(4px);
-    display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
-  .overlay.show{display:flex;animation:fade .2s;}
-  @keyframes fade{from{opacity:0;}to{opacity:1;}}
-  .sheet{background:var(--bg2);border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:var(--shadow);
-    width:100%;max-width:640px;padding:26px;animation:pop .2s;}
-  .sheet.wide{max-width:860px;}
-  @keyframes pop{from{transform:translateY(14px) scale(.98);opacity:0;}to{transform:none;opacity:1;}}
-  .sheet h2{margin:0 0 4px;} .sheet .sub{color:var(--muted);margin:0 0 20px;font-size:.9rem;}
-  .sheet-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
-  .sheet-head h2{margin:0;margin-right:auto;}
+  .quote {
+    font-size: clamp(1.4rem, 4.4vw, 2.5rem);
+    line-height: 1.36;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.4);
+  }
+  .author {
+    margin-top: 18px;
+    font-size: clamp(0.95rem, 2.6vw, 1.1rem);
+    font-style: italic;
+    opacity: 0.9;
+  }
 
-  .session-list{display:grid;gap:14px;}
-  .session-card{display:flex;align-items:center;gap:16px;background:var(--panel);border-radius:var(--radius);padding:16px 18px;border:1px solid rgba(255,255,255,.06);}
-  .session-card.locked{opacity:.55;}
-  .session-card .badge{width:48px;height:48px;border-radius:12px;flex:none;display:grid;place-items:center;font-weight:800;font-size:1.2rem;background:linear-gradient(135deg,#5b6cff,#8b5bff);}
-  .session-card .badge.done{background:linear-gradient(135deg,#2f9e44,#51cf66);}
-  .session-card .badge.lk{background:var(--lock);}
-  .session-info{margin-right:auto;} .session-info b{font-size:1.02rem;}
-  .session-info .range{color:var(--muted);font-size:.82rem;}
-  .progress{height:7px;border-radius:99px;background:#0d1024;margin-top:8px;width:180px;overflow:hidden;}
-  .progress>i{display:block;height:100%;background:linear-gradient(90deg,#51cf66,#94d82d);width:0;transition:width .4s;}
+  /* ---------- Controls ---------- */
+  .controls {
+    margin-top: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.28);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.92rem;
+    padding: 10px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn:hover { background: rgba(255,255,255,0.26); }
+  .btn:active { transform: scale(0.96); }
 
-  .learn-banner{background:var(--panel);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-  .learn-banner .txt{margin-right:auto;}
-  .learn-banner .txt b{display:block;}
-  .learn-banner .txt small{color:var(--muted);}
-  .learn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:10px;}
-  .learn-tile{border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;color:#10131f;font-weight:700;position:relative;transition:transform .1s;}
-  .learn-tile:hover{transform:translateY(-3px);}
-  .learn-tile .lz{font-size:.6rem;opacity:.7;} .learn-tile .ls{font-size:1.3rem;line-height:1.1;} .learn-tile .ln{font-size:.62rem;opacity:.85;}
-  .learn-tile.learned::after{content:"✓";position:absolute;top:4px;right:6px;font-size:.7rem;color:#0a4d1c;}
+  .stars { display: inline-flex; gap: 3px; align-items: center; }
+  .star {
+    font-size: 1.55rem;
+    line-height: 1;
+    color: rgba(255,255,255,0.34);
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.1s ease, color 0.1s ease;
+  }
+  .star:hover { transform: scale(1.18); }
+  .star.on { color: var(--gold); text-shadow: 0 0 12px rgba(255,211,77,0.6); }
 
-  .detail-top{display:flex;gap:20px;flex-wrap:wrap;align-items:center;}
-  .big-tile{width:130px;height:130px;border-radius:18px;flex:none;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#10131f;box-shadow:var(--shadow);}
-  .big-tile .bz{font-size:.8rem;opacity:.75;} .big-tile .bs{font-size:3rem;font-weight:800;line-height:1;} .big-tile .bn{font-size:.8rem;font-weight:600;}
-  .detail-name h2{margin:0;font-size:1.8rem;} .detail-name .cat{color:var(--muted);}
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0;}
-  .stat{background:var(--panel);border-radius:12px;padding:14px;text-align:center;}
-  .stat .v{font-size:1.7rem;font-weight:800;} .stat .k{font-size:.75rem;color:var(--muted);margin-top:2px;}
-  .stat.p .v{color:#ff8787;} .stat.n .v{color:#ffd43b;} .stat.e .v{color:#74c0fc;}
-  .meta-row{display:flex;gap:22px;flex-wrap:wrap;color:var(--muted);font-size:.9rem;margin-bottom:18px;}
-  .meta-row b{color:var(--text);}
-  .atom-wrap{text-align:center;} .atom-wrap .cap{font-size:.72rem;color:var(--muted);}
-  .facts h3{margin:18px 0 8px;font-size:1rem;}
-  .facts ul{margin:0;padding-left:0;list-style:none;display:grid;gap:8px;}
-  .facts li{background:var(--panel);border-radius:10px;padding:10px 12px;font-size:.92rem;line-height:1.4;display:flex;gap:8px;}
-  .facts li::before{content:"💡";flex:none;}
+  .toast {
+    margin-top: 14px;
+    min-height: 1.1em;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--modern);
+  }
 
-  .particle-table{width:100%;border-collapse:collapse;margin-top:8px;}
-  .particle-table th,.particle-table td{text-align:left;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.08);font-size:.92rem;}
-  .particle-table th{color:var(--muted);font-weight:600;}
-  .chip{display:inline-block;padding:3px 10px;border-radius:99px;font-weight:700;font-size:.8rem;}
-  .chip.pos{background:#ff8787;color:#3a0c0c;} .chip.neu{background:#ffe066;color:#4a3a00;} .chip.neg{background:#74c0fc;color:#062a4a;}
-  .events{margin-top:24px;} .events h3{margin:0 0 10px;font-size:1.05rem;}
-  .event{background:var(--panel);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
-  .event b{display:block;margin-bottom:4px;} .event span{color:var(--muted);font-size:.9rem;}
-  .event .ico{font-size:1.3rem;margin-right:6px;}
+  /* ---------- Scroll hint (first page) ---------- */
+  .hint {
+    position: absolute;
+    bottom: max(22px, env(safe-area-inset-bottom));
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.9;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    animation: bob 1.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .hint .chev { display: block; font-size: 1.4rem; line-height: 1; }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
 
-  /* ---------- Battle ---------- */
-  #quizView .sheet{max-width:760px;}
-  .battle-stage{position:relative;background:linear-gradient(180deg,#10204a,#1a1030 80%);border-radius:16px;
-    height:230px;overflow:hidden;margin-bottom:18px;border:1px solid rgba(255,255,255,.08);}
-  .ground{position:absolute;bottom:0;left:0;right:0;height:46px;background:linear-gradient(180deg,#2a1a3a,#140a20);}
-  .fighter{position:absolute;bottom:42px;font-size:4.6rem;filter:drop-shadow(0 6px 8px rgba(0,0,0,.5));transition:transform .1s;}
-  .soldier{left:7%;} .dragon{right:7%;transform:scaleX(-1);} /* dragon faces left */
-  .hpwrap{position:absolute;top:12px;width:38%;}
-  .hpwrap.l{left:5%;} .hpwrap.r{right:5%;text-align:right;}
-  .hpwrap .lab{font-size:.78rem;font-weight:700;margin-bottom:4px;}
-  .hpbar{height:14px;border-radius:99px;background:#0008;overflow:hidden;}
-  .hpbar>i{display:block;height:100%;transition:width .4s;}
-  .hpbar.dragon>i{background:linear-gradient(90deg,#ff6b6b,#ff922b);}
-  .hpbar.soldier>i{background:linear-gradient(90deg,#74c0fc,#51cf66);}
-  .shake{animation:shake .4s;}
-  @keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-8px);}40%{transform:translateX(8px);}60%{transform:translateX(-6px);}80%{transform:translateX(6px);}}
-  .dragon.shake{animation:shakeD .4s;}
-  @keyframes shakeD{0%,100%{transform:scaleX(-1) translateX(0);}20%{transform:scaleX(-1) translateX(-8px);}40%{transform:scaleX(-1) translateX(8px);}60%{transform:scaleX(-1) translateX(-6px);}80%{transform:scaleX(-1) translateX(6px);}}
-  .flame{position:absolute;bottom:70px;font-size:2.4rem;opacity:0;pointer-events:none;}
-  .flame.fire{left:18%;animation:fireGo .7s ease-out;}
-  .flame.blue{right:18%;animation:blueGo .7s ease-out;filter:hue-rotate(160deg) saturate(2);}
-  @keyframes fireGo{0%{opacity:0;left:18%;transform:scale(.6);}15%{opacity:1;}100%{opacity:0;left:70%;transform:scale(1.3);}}
-  @keyframes blueGo{0%{opacity:0;right:18%;transform:scale(.6) scaleX(-1);}15%{opacity:1;}100%{opacity:0;right:70%;transform:scale(1.3) scaleX(-1);}}
-  .roar{position:absolute;top:50px;right:10%;font-weight:800;color:#ffd43b;opacity:0;font-size:1.1rem;}
-  .roar.go{animation:roar .8s;}
-  @keyframes roar{0%{opacity:0;transform:translateY(0) scale(.7);}30%{opacity:1;transform:translateY(-10px) scale(1.1);}100%{opacity:0;transform:translateY(-26px);}}
+  /* ---------- End page ---------- */
+  .end { text-align: center; }
+  .end h2 { font-size: clamp(1.6rem, 5vw, 2.4rem); text-shadow: 0 2px 14px rgba(0,0,0,0.4); }
+  .end p { margin-top: 12px; opacity: 0.9; }
 
-  .qbox{background:var(--panel);border-radius:14px;padding:18px;}
-  .qbox .qmeta{display:flex;justify-content:space-between;color:var(--muted);font-size:.8rem;margin-bottom:8px;}
-  .qbox .qtext{font-size:1.15rem;font-weight:700;margin-bottom:14px;}
-  .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .opt{padding:14px;border-radius:12px;background:var(--panel2);border:2px solid transparent;cursor:pointer;font-weight:600;text-align:left;transition:transform .1s,background .15s;}
-  .opt:hover{transform:translateY(-2px);background:#33407a;}
-  .opt.correct{background:#1d6b3a;border-color:#51cf66;} .opt.wrong{background:#7a2330;border-color:#ff6b6b;}
-  .opt:disabled{cursor:default;}
-  @media(max-width:560px){.opts{grid-template-columns:1fr;} .fighter{font-size:3.4rem;}}
-
-  #congrats .sheet,#battleEnd .sheet{text-align:center;max-width:460px;}
-  #congrats .emoji,#battleEnd .emoji{font-size:4rem;animation:bounce 1s infinite alternate;}
-  @keyframes bounce{to{transform:translateY(-12px);}}
-  .confetti{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden;}
-  .confetti i{position:absolute;top:-12px;width:9px;height:14px;opacity:.9;animation:fall linear forwards;}
-  @keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:1;}}
-  .footer-note{text-align:center;color:var(--muted);font-size:.75rem;margin-top:26px;}
+  @media (prefers-reduced-motion: reduce) {
+    .card, .hint { animation: none; }
+  }
 </style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand"><h1 id="appTitle">Periodic Table Explorer</h1><p id="appSub">Learn all 118 elements</p></div>
-  <div class="streak"><span class="flame">🔥</span><span><span id="streakNum">0</span> <small id="streakLbl">day streak</small></span></div>
-  <button class="btn primary" id="sessionsBtn">📚 <span>Sessions</span></button>
-  <button class="btn" id="subatomicBtn">🔬 <span>Subatomic Particles</span></button>
-  <button class="btn ghost" id="langBtn">🌐 English</button>
-</header>
+  <!-- Rainforest hiking scene -->
+  <div id="scene">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#bfeecf"/>
+          <stop offset="40%" stop-color="#6fc79a"/>
+          <stop offset="75%" stop-color="#2f7d57"/>
+          <stop offset="100%" stop-color="#14432f"/>
+        </linearGradient>
+        <radialGradient id="sun" cx="22%" cy="14%" r="40%">
+          <stop offset="0%"  stop-color="#fff7d6" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#fff7d6" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="mist" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
 
-<main>
-  <div class="legend" id="legend"></div>
-  <div class="table-wrap"><div class="ptable" id="ptable"></div></div>
-  <p class="footer-note" id="footNote"></p>
-</main>
+      <rect width="1440" height="900" fill="url(#sky)"/>
+      <rect width="1440" height="900" fill="url(#sun)"/>
 
-<!-- Sessions -->
-<div class="overlay" id="sessionsView" data-close>
-  <div class="sheet">
-    <div class="sheet-head"><h2 id="sessionsTitle">Choose a Session</h2><button class="btn ghost" data-close-btn id="sessClose">Close</button></div>
-    <div class="session-list" id="sessionList"></div>
+      <!-- distant mountains -->
+      <path d="M0,400 C240,318 470,360 720,330 C960,302 1200,362 1440,322 L1440,900 L0,900 Z" fill="#5aa37f" opacity="0.85"/>
+      <ellipse cx="500" cy="430" rx="430" ry="70" fill="url(#mist)"/>
+      <!-- mid hills -->
+      <path d="M0,520 C200,462 520,502 760,472 C1040,438 1240,520 1440,482 L1440,900 L0,900 Z" fill="#3f8c66"/>
+      <ellipse cx="980" cy="545" rx="480" ry="64" fill="url(#mist)"/>
+      <!-- front hills -->
+      <path d="M0,642 C260,602 520,680 800,632 C1080,588 1300,662 1440,620 L1440,900 L0,900 Z" fill="#2b6e4f"/>
+      <!-- foreground ridge -->
+      <path d="M0,782 C220,742 480,802 760,762 C1040,730 1260,792 1440,760 L1440,900 L0,900 Z" fill="#1c5038"/>
+
+      <!-- simple fir trees on the foreground ridge -->
+      <g fill="#143d2b">
+        <path d="M120,772 l24,46 -48,0 Z M120,792 l30,52 -60,0 Z"/>
+        <path d="M300,766 l22,42 -44,0 Z M300,784 l28,48 -56,0 Z"/>
+        <path d="M560,772 l24,46 -48,0 Z M560,792 l30,52 -60,0 Z"/>
+        <path d="M860,766 l22,42 -44,0 Z M860,784 l28,48 -56,0 Z"/>
+        <path d="M1120,772 l24,46 -48,0 Z M1120,792 l30,52 -60,0 Z"/>
+        <path d="M1320,768 l22,42 -44,0 Z M1320,786 l28,48 -56,0 Z"/>
+      </g>
+    </svg>
   </div>
-</div>
 
-<!-- Learn -->
-<div class="overlay" id="learnView" data-close>
-  <div class="sheet wide">
-    <div class="sheet-head">
-      <button class="btn ghost" id="learnBack">← <span id="backTxt">Back</span></button>
-      <h2 id="learnTitle" style="margin-left:6px;"></h2>
-      <button class="btn ghost" data-close-btn>✕</button>
-    </div>
-    <div class="learn-banner" id="learnBanner"></div>
-    <div class="learn-grid" id="learnGrid"></div>
-  </div>
-</div>
+  <header>
+    <span class="brand">✨ Daily Spark</span>
+    <span class="pill" title="Days in a row you've engaged with motivation">
+      🔥 <span class="num" id="streakNum">0</span> <small>day streak</small>
+    </span>
+  </header>
 
-<!-- Detail -->
-<div class="overlay" id="detailView" data-close>
-  <div class="sheet">
-    <div class="sheet-head"><h2 id="detailHdr" style="margin-right:auto;font-size:1.1rem;color:var(--muted)">Element details</h2><button class="btn ghost" data-close-btn>✕</button></div>
-    <div id="detailBody"></div>
-  </div>
-</div>
-
-<!-- Subatomic -->
-<div class="overlay" id="subView" data-close>
-  <div class="sheet">
-    <div class="sheet-head"><h2 id="subTitle">Subatomic Particles</h2><button class="btn ghost" data-close-btn>✕</button></div>
-    <p class="sub" id="subIntro"></p>
-    <table class="particle-table">
-      <thead><tr><th id="thP">Particle</th><th id="thC">Charge</th><th id="thL">Location</th><th id="thR">Role</th></tr></thead>
-      <tbody id="subBody"></tbody>
-    </table>
-    <div class="events"><h3 id="eventsTitle"></h3><div id="eventsBody"></div></div>
-  </div>
-</div>
-
-<!-- Quiz battle -->
-<div class="overlay" id="quizView" data-close>
-  <div class="sheet">
-    <div class="sheet-head"><h2 id="quizTitle">Element Battle</h2><button class="btn ghost" data-close-btn>✕</button></div>
-    <div class="battle-stage" id="stage">
-      <div class="hpwrap l"><div class="lab" id="soldierLab">You</div><div class="hpbar soldier"><i id="soldierHp"></i></div></div>
-      <div class="hpwrap r"><div class="lab" id="dragonLab">Dragon</div><div class="hpbar dragon"><i id="dragonHp"></i></div></div>
-      <div class="fighter soldier" id="soldierEl">🧑‍🚒</div>
-      <div class="fighter dragon" id="dragonEl">🐉</div>
-      <div class="flame fire" id="fireFlame">🔥</div>
-      <div class="flame blue" id="blueFlame">🔥</div>
-      <div class="roar" id="roarEl">ROAARR!</div>
-      <div class="ground"></div>
-    </div>
-    <div class="qbox" id="qbox"></div>
-  </div>
-</div>
-
-<!-- Battle end -->
-<div class="overlay" id="battleEnd">
-  <div class="sheet">
-    <div class="emoji" id="endEmoji">🏆</div>
-    <h2 id="endTitle"></h2><p class="sub" id="endMsg"></p>
-    <button class="btn primary" id="endBtn"></button>
-  </div>
-</div>
-
-<!-- Congrats -->
-<div class="overlay" id="congrats">
-  <div class="sheet">
-    <div class="emoji">🎉</div><h2 id="congTitle">Congratulations!</h2>
-    <p class="sub" id="congMsg"></p><p id="congNext" style="color:var(--good);font-weight:700"></p>
-    <button class="btn primary" id="congBtn">Continue</button>
-  </div>
-</div>
+  <div class="feed" id="feed"></div>
 
 <script>
-/* ===== ELEMENT DATA: z, symbol, IUPAC name, mass, category, col, row ===== */
-const E = [
-[1,"H","Hydrogen",1.008,"nonmetal",1,1],[2,"He","Helium",4.0026,"noble",18,1],
-[3,"Li","Lithium",6.94,"alkali",1,2],[4,"Be","Beryllium",9.0122,"alkaline",2,2],
-[5,"B","Boron",10.81,"metalloid",13,2],[6,"C","Carbon",12.011,"nonmetal",14,2],
-[7,"N","Nitrogen",14.007,"nonmetal",15,2],[8,"O","Oxygen",15.999,"nonmetal",16,2],
-[9,"F","Fluorine",18.998,"halogen",17,2],[10,"Ne","Neon",20.180,"noble",18,2],
-[11,"Na","Sodium",22.990,"alkali",1,3],[12,"Mg","Magnesium",24.305,"alkaline",2,3],
-[13,"Al","Aluminium",26.982,"post",13,3],[14,"Si","Silicon",28.085,"metalloid",14,3],
-[15,"P","Phosphorus",30.974,"nonmetal",15,3],[16,"S","Sulfur",32.06,"nonmetal",16,3],
-[17,"Cl","Chlorine",35.45,"halogen",17,3],[18,"Ar","Argon",39.95,"noble",18,3],
-[19,"K","Potassium",39.098,"alkali",1,4],[20,"Ca","Calcium",40.078,"alkaline",2,4],
-[21,"Sc","Scandium",44.956,"transition",3,4],[22,"Ti","Titanium",47.867,"transition",4,4],
-[23,"V","Vanadium",50.942,"transition",5,4],[24,"Cr","Chromium",51.996,"transition",6,4],
-[25,"Mn","Manganese",54.938,"transition",7,4],[26,"Fe","Iron",55.845,"transition",8,4],
-[27,"Co","Cobalt",58.933,"transition",9,4],[28,"Ni","Nickel",58.693,"transition",10,4],
-[29,"Cu","Copper",63.546,"transition",11,4],[30,"Zn","Zinc",65.38,"transition",12,4],
-[31,"Ga","Gallium",69.723,"post",13,4],[32,"Ge","Germanium",72.630,"metalloid",14,4],
-[33,"As","Arsenic",74.922,"metalloid",15,4],[34,"Se","Selenium",78.971,"nonmetal",16,4],
-[35,"Br","Bromine",79.904,"halogen",17,4],[36,"Kr","Krypton",83.798,"noble",18,4],
-[37,"Rb","Rubidium",85.468,"alkali",1,5],[38,"Sr","Strontium",87.62,"alkaline",2,5],
-[39,"Y","Yttrium",88.906,"transition",3,5],[40,"Zr","Zirconium",91.224,"transition",4,5],
-[41,"Nb","Niobium",92.906,"transition",5,5],[42,"Mo","Molybdenum",95.95,"transition",6,5],
-[43,"Tc","Technetium",98,"transition",7,5],[44,"Ru","Ruthenium",101.07,"transition",8,5],
-[45,"Rh","Rhodium",102.91,"transition",9,5],[46,"Pd","Palladium",106.42,"transition",10,5],
-[47,"Ag","Silver",107.87,"transition",11,5],[48,"Cd","Cadmium",112.41,"transition",12,5],
-[49,"In","Indium",114.82,"post",13,5],[50,"Sn","Tin",118.71,"post",14,5],
-[51,"Sb","Antimony",121.76,"metalloid",15,5],[52,"Te","Tellurium",127.60,"metalloid",16,5],
-[53,"I","Iodine",126.90,"halogen",17,5],[54,"Xe","Xenon",131.29,"noble",18,5],
-[55,"Cs","Caesium",132.91,"alkali",1,6],[56,"Ba","Barium",137.33,"alkaline",2,6],
-[57,"La","Lanthanum",138.91,"lanthanide",3,9],[58,"Ce","Cerium",140.12,"lanthanide",4,9],
-[59,"Pr","Praseodymium",140.91,"lanthanide",5,9],[60,"Nd","Neodymium",144.24,"lanthanide",6,9],
-[61,"Pm","Promethium",145,"lanthanide",7,9],[62,"Sm","Samarium",150.36,"lanthanide",8,9],
-[63,"Eu","Europium",151.96,"lanthanide",9,9],[64,"Gd","Gadolinium",157.25,"lanthanide",10,9],
-[65,"Tb","Terbium",158.93,"lanthanide",11,9],[66,"Dy","Dysprosium",162.50,"lanthanide",12,9],
-[67,"Ho","Holmium",164.93,"lanthanide",13,9],[68,"Er","Erbium",167.26,"lanthanide",14,9],
-[69,"Tm","Thulium",168.93,"lanthanide",15,9],[70,"Yb","Ytterbium",173.05,"lanthanide",16,9],
-[71,"Lu","Lutetium",174.97,"lanthanide",17,9],[72,"Hf","Hafnium",178.49,"transition",4,6],
-[73,"Ta","Tantalum",180.95,"transition",5,6],[74,"W","Tungsten",183.84,"transition",6,6],
-[75,"Re","Rhenium",186.21,"transition",7,6],[76,"Os","Osmium",190.23,"transition",8,6],
-[77,"Ir","Iridium",192.22,"transition",9,6],[78,"Pt","Platinum",195.08,"transition",10,6],
-[79,"Au","Gold",196.97,"transition",11,6],[80,"Hg","Mercury",200.59,"transition",12,6],
-[81,"Tl","Thallium",204.38,"post",13,6],[82,"Pb","Lead",207.2,"post",14,6],
-[83,"Bi","Bismuth",208.98,"post",15,6],[84,"Po","Polonium",209,"post",16,6],
-[85,"At","Astatine",210,"halogen",17,6],[86,"Rn","Radon",222,"noble",18,6],
-[87,"Fr","Francium",223,"alkali",1,7],[88,"Ra","Radium",226,"alkaline",2,7],
-[89,"Ac","Actinium",227,"actinide",3,10],[90,"Th","Thorium",232.04,"actinide",4,10],
-[91,"Pa","Protactinium",231.04,"actinide",5,10],[92,"U","Uranium",238.03,"actinide",6,10],
-[93,"Np","Neptunium",237,"actinide",7,10],[94,"Pu","Plutonium",244,"actinide",8,10],
-[95,"Am","Americium",243,"actinide",9,10],[96,"Cm","Curium",247,"actinide",10,10],
-[97,"Bk","Berkelium",247,"actinide",11,10],[98,"Cf","Californium",251,"actinide",12,10],
-[99,"Es","Einsteinium",252,"actinide",13,10],[100,"Fm","Fermium",257,"actinide",14,10],
-[101,"Md","Mendelevium",258,"actinide",15,10],[102,"No","Nobelium",259,"actinide",16,10],
-[103,"Lr","Lawrencium",262,"actinide",17,10],[104,"Rf","Rutherfordium",267,"transition",4,7],
-[105,"Db","Dubnium",270,"transition",5,7],[106,"Sg","Seaborgium",271,"transition",6,7],
-[107,"Bh","Bohrium",270,"transition",7,7],[108,"Hs","Hassium",277,"transition",8,7],
-[109,"Mt","Meitnerium",276,"transition",9,7],[110,"Ds","Darmstadtium",281,"transition",10,7],
-[111,"Rg","Roentgenium",282,"transition",11,7],[112,"Cn","Copernicium",285,"transition",12,7],
-[113,"Nh","Nihonium",286,"post",13,7],[114,"Fl","Flerovium",289,"post",14,7],
-[115,"Mc","Moscovium",290,"post",15,7],[116,"Lv","Livermorium",293,"post",16,7],
-[117,"Ts","Tennessine",294,"halogen",17,7],[118,"Og","Oganesson",294,"noble",18,7]
-].map(a=>({z:a[0],sym:a[1],name:a[2],mass:a[3],cat:a[4],col:a[5],row:a[6]}));
+/* ============================================================
+   Daily Spark v2 — one quote per page, rainforest theme
+   Famous people only · EN default with VI translate · share · streak
+   ============================================================ */
 
-/* electrons per shell (ground state) */
-const SHELLS = {"1":[1],"2":[2],"3":[2,1],"4":[2,2],"5":[2,3],"6":[2,4],"7":[2,5],"8":[2,6],"9":[2,7],"10":[2,8],"11":[2,8,1],"12":[2,8,2],"13":[2,8,3],"14":[2,8,4],"15":[2,8,5],"16":[2,8,6],"17":[2,8,7],"18":[2,8,8],"19":[2,8,8,1],"20":[2,8,8,2],"21":[2,8,9,2],"22":[2,8,10,2],"23":[2,8,11,2],"24":[2,8,13,1],"25":[2,8,13,2],"26":[2,8,14,2],"27":[2,8,15,2],"28":[2,8,16,2],"29":[2,8,18,1],"30":[2,8,18,2],"31":[2,8,18,3],"32":[2,8,18,4],"33":[2,8,18,5],"34":[2,8,18,6],"35":[2,8,18,7],"36":[2,8,18,8],"37":[2,8,18,8,1],"38":[2,8,18,8,2],"39":[2,8,18,9,2],"40":[2,8,18,10,2],"41":[2,8,18,12,1],"42":[2,8,18,13,1],"43":[2,8,18,13,2],"44":[2,8,18,15,1],"45":[2,8,18,16,1],"46":[2,8,18,18],"47":[2,8,18,18,1],"48":[2,8,18,18,2],"49":[2,8,18,18,3],"50":[2,8,18,18,4],"51":[2,8,18,18,5],"52":[2,8,18,18,6],"53":[2,8,18,18,7],"54":[2,8,18,18,8],"55":[2,8,18,18,8,1],"56":[2,8,18,18,8,2],"57":[2,8,18,18,9,2],"58":[2,8,18,19,9,2],"59":[2,8,18,21,8,2],"60":[2,8,18,22,8,2],"61":[2,8,18,23,8,2],"62":[2,8,18,24,8,2],"63":[2,8,18,25,8,2],"64":[2,8,18,25,9,2],"65":[2,8,18,27,8,2],"66":[2,8,18,28,8,2],"67":[2,8,18,29,8,2],"68":[2,8,18,30,8,2],"69":[2,8,18,31,8,2],"70":[2,8,18,32,8,2],"71":[2,8,18,32,9,2],"72":[2,8,18,32,10,2],"73":[2,8,18,32,11,2],"74":[2,8,18,32,12,2],"75":[2,8,18,32,13,2],"76":[2,8,18,32,14,2],"77":[2,8,18,32,15,2],"78":[2,8,18,32,17,1],"79":[2,8,18,32,18,1],"80":[2,8,18,32,18,2],"81":[2,8,18,32,18,3],"82":[2,8,18,32,18,4],"83":[2,8,18,32,18,5],"84":[2,8,18,32,18,6],"85":[2,8,18,32,18,7],"86":[2,8,18,32,18,8],"87":[2,8,18,32,18,8,1],"88":[2,8,18,32,18,8,2],"89":[2,8,18,32,18,9,2],"90":[2,8,18,32,18,10,2],"91":[2,8,18,32,20,9,2],"92":[2,8,18,32,21,9,2],"93":[2,8,18,32,22,9,2],"94":[2,8,18,32,24,8,2],"95":[2,8,18,32,25,8,2],"96":[2,8,18,32,25,9,2],"97":[2,8,18,32,27,8,2],"98":[2,8,18,32,28,8,2],"99":[2,8,18,32,29,8,2],"100":[2,8,18,32,30,8,2],"101":[2,8,18,32,31,8,2],"102":[2,8,18,32,32,8,2],"103":[2,8,18,32,32,8,3],"104":[2,8,18,32,32,10,2],"105":[2,8,18,32,32,11,2],"106":[2,8,18,32,32,12,2],"107":[2,8,18,32,32,13,2],"108":[2,8,18,32,32,14,2],"109":[2,8,18,32,32,15,2],"110":[2,8,18,32,32,16,2],"111":[2,8,18,32,32,17,2],"112":[2,8,18,32,32,18,2],"113":[2,8,18,32,32,18,3],"114":[2,8,18,32,32,18,4],"115":[2,8,18,32,32,18,5],"116":[2,8,18,32,32,18,6],"117":[2,8,18,32,32,18,7],"118":[2,8,18,32,32,18,8]};
+/* ---------- 1. Content: famous quotes, English + Vietnamese ---------- */
+const QUOTES = [
+  // --- Classic (long ago) ---
+  { author: "Marcus Aurelius", era: "classic",
+    en: "You have power over your mind — not outside events. Realize this, and you will find strength.",
+    vi: "Bạn làm chủ tâm trí mình — không phải những điều bên ngoài. Hiểu được điều này, bạn sẽ tìm thấy sức mạnh." },
+  { author: "Confucius", era: "classic",
+    en: "It does not matter how slowly you go as long as you do not stop.",
+    vi: "Đi chậm đến đâu cũng không sao, miễn là bạn không dừng lại." },
+  { author: "Seneca", era: "classic",
+    en: "We suffer more often in imagination than in reality.",
+    vi: "Chúng ta đau khổ trong tưởng tượng nhiều hơn là trong thực tế." },
+  { author: "Lao Tzu", era: "classic",
+    en: "The journey of a thousand miles begins with a single step.",
+    vi: "Hành trình vạn dặm bắt đầu từ một bước chân." },
+  { author: "Friedrich Nietzsche", era: "classic",
+    en: "He who has a why to live can bear almost any how.",
+    vi: "Người có một lý do để sống có thể chịu đựng gần như mọi hoàn cảnh." },
+  { author: "Aristotle", era: "classic",
+    en: "Knowing yourself is the beginning of all wisdom.",
+    vi: "Hiểu chính mình là khởi đầu của mọi trí tuệ." },
+  { author: "Henry Ford", era: "classic",
+    en: "Whether you think you can, or you think you can't — you're right.",
+    vi: "Dù bạn nghĩ mình làm được hay không làm được — bạn đều đúng." },
+  { author: "Confucius", era: "classic",
+    en: "Our greatest glory is not in never falling, but in rising every time we fall.",
+    vi: "Vinh quang lớn nhất không phải là không bao giờ ngã, mà là đứng dậy sau mỗi lần ngã." },
+  { author: "Thomas Edison", era: "classic",
+    en: "I have not failed. I've just found 10,000 ways that won't work.",
+    vi: "Tôi chưa hề thất bại. Tôi chỉ tìm ra 10.000 cách không hiệu quả." },
+  { author: "Ralph Waldo Emerson", era: "classic",
+    en: "What lies behind us and what lies before us are tiny matters compared to what lies within us.",
+    vi: "Những gì phía sau và phía trước ta đều nhỏ bé so với những gì bên trong ta." },
+  { author: "Winston Churchill", era: "classic",
+    en: "Success is not final, failure is not fatal: it is the courage to continue that counts.",
+    vi: "Thành công không phải đích cuối, thất bại không phải dấu chấm hết: điều quan trọng là can đảm để tiếp tục." },
+  { author: "Albert Einstein", era: "classic",
+    en: "In the middle of difficulty lies opportunity.",
+    vi: "Giữa khó khăn luôn ẩn chứa cơ hội." },
+  { author: "Theodore Roosevelt", era: "classic",
+    en: "Believe you can and you're halfway there.",
+    vi: "Hãy tin rằng bạn làm được, và bạn đã đi được nửa đường." },
+  { author: "Japanese Proverb", era: "classic",
+    en: "Fall seven times, stand up eight.",
+    vi: "Ngã bảy lần, đứng dậy tám lần." },
+  { author: "Benjamin Franklin", era: "classic",
+    en: "Tell me and I forget. Teach me and I remember. Involve me and I learn.",
+    vi: "Nói cho tôi, tôi sẽ quên. Dạy tôi, tôi sẽ nhớ. Cho tôi tham gia, tôi sẽ học được." },
 
-/* 3 fun facts (EN + VI) per element */
-const FACT_DATA = [
-{"z":1,"en":["Hydrogen is the most abundant element in the universe, making up most stars.","The Hindenburg airship burned because it was filled with flammable hydrogen.","Your body is about 10% hydrogen by mass, mostly locked inside water."],"vi":["Hydro là nguyên tố phổ biến nhất vũ trụ, tạo nên phần lớn các ngôi sao.","Khí cầu Hindenburg cháy rụi vì được bơm đầy khí hydro dễ cháy.","Khoảng 10% khối lượng cơ thể bạn là hydro, chủ yếu nằm trong nước."]},
-{"z":2,"en":["Helium makes your voice squeaky because sound travels faster through it.","Helium was discovered on the Sun before it was ever found on Earth.","Cooled to near absolute zero, liquid helium can crawl up walls by itself."],"vi":["Helium làm giọng bạn the thé vì âm thanh truyền nhanh hơn qua nó.","Helium được tìm thấy trên Mặt Trời trước cả khi phát hiện ở Trái Đất.","Lạnh gần độ không tuyệt đối, helium lỏng có thể tự bò lên thành bình."]},
-{"z":3,"en":["Lithium powers the rechargeable battery inside your phone and laptop.","Doctors use lithium as a medicine to help stabilize people's moods.","Lithium is so light it can actually float on water before reacting."],"vi":["Lithium cấp năng lượng cho pin sạc trong điện thoại và laptop của bạn.","Bác sĩ dùng lithium như một loại thuốc giúp ổn định cảm xúc người bệnh.","Lithium nhẹ đến mức có thể nổi trên mặt nước trước khi phản ứng."]},
-{"z":4,"en":["Beryllium is light yet stiff, so it's used in spacecraft and jet parts.","Beryllium dust is toxic and can seriously damage your lungs if inhaled.","Emeralds get their green glow from tiny amounts of beryllium inside."],"vi":["Beryli nhẹ mà cứng, nên được dùng trong tàu vũ trụ và bộ phận máy bay.","Bụi beryli rất độc và có thể gây hại nghiêm trọng cho phổi nếu hít phải.","Ngọc lục bảo có màu xanh đặc trưng nhờ một chút beryli bên trong."]},
-{"z":5,"en":["Boron makes glass heat-resistant, like the Pyrex dishes in your kitchen.","Borax, a boron compound, is the secret ingredient in homemade slime.","Boron is rare on Earth because stars barely produce any of it."],"vi":["Bo giúp thủy tinh chịu nhiệt, như những chiếc tô Pyrex trong bếp nhà bạn.","Borax, một hợp chất của bo, là nguyên liệu bí mật để làm slime.","Bo hiếm trên Trái Đất vì các ngôi sao gần như không tạo ra nó."]},
-{"z":6,"en":["Every living thing you know is built on carbon's amazing chemistry.","Diamond and pencil graphite are both pure carbon, just arranged differently.","Carbon dating lets scientists figure out how old ancient bones really are."],"vi":["Mọi sinh vật sống bạn biết đều dựa trên hóa học kỳ diệu của carbon.","Kim cương và ruột bút chì đều là carbon nguyên chất, chỉ khác cách sắp xếp.","Phương pháp carbon phóng xạ giúp các nhà khoa học đoán tuổi xương cổ."]},
-{"z":7,"en":["Nitrogen makes up about 78% of every breath of air you take.","Liquid nitrogen is so cold it can freeze a flower until it shatters.","Lightning bolts split nitrogen apart, helping make natural fertilizer for plants."],"vi":["Nitơ chiếm khoảng 78% mỗi hơi thở không khí mà bạn hít vào.","Nitơ lỏng lạnh đến mức có thể đóng băng bông hoa cho đến khi vỡ vụn.","Tia sét xé nitơ ra, giúp tạo phân bón tự nhiên cho cây cối."]},
-{"z":8,"en":["Oxygen lets your cells release energy, but too much can actually be toxic.","Liquid oxygen is pale blue and gets pulled toward a magnet.","Oxygen is the most abundant element in Earth's crust, not iron."],"vi":["Oxy giúp tế bào giải phóng năng lượng, nhưng quá nhiều lại có thể gây độc.","Oxy lỏng có màu xanh nhạt và bị hút về phía nam châm.","Oxy là nguyên tố nhiều nhất trong vỏ Trái Đất, không phải sắt."]},
-{"z":9,"en":["Fluoride in toothpaste makes your enamel tougher against cavities.","Fluorine is so reactive it can set fire to glass and even water.","Non-stick Teflon pans owe their slippery surface to fluorine atoms."],"vi":["Fluoride trong kem đánh răng giúp men răng cứng hơn, chống sâu răng.","Flo phản ứng mạnh đến mức có thể đốt cháy cả thủy tinh và nước.","Chảo chống dính Teflon có bề mặt trơn trượt là nhờ các nguyên tử flo."]},
-{"z":10,"en":["Neon glows bright red-orange when electricity zaps through it in signs.","Neon is so unreactive it almost never forms compounds with anything.","Neon was named from the Greek word meaning 'the new one'."],"vi":["Neon phát sáng đỏ cam rực rỡ khi dòng điện chạy qua trong biển hiệu.","Neon trơ đến mức gần như không bao giờ tạo hợp chất với thứ gì.","Tên neon bắt nguồn từ tiếng Hy Lạp nghĩa là 'cái mới'."]},
-{"z":11,"en":["Sodium explodes when it touches water, fizzing and sometimes bursting into flame.","Table salt is half sodium, and your nerves need it to send signals.","Streetlights once glowed orange-yellow thanks to glowing sodium vapor."],"vi":["Natri nổ khi chạm nước, sủi bọt và đôi khi bùng cháy thành ngọn lửa.","Muối ăn chứa một nửa là natri, và thần kinh cần nó để truyền tín hiệu.","Đèn đường từng phát sáng vàng cam nhờ hơi natri rực sáng."]},
-{"z":12,"en":["Magnesium burns with a blinding white light used in old camera flashes.","Your muscles need magnesium to relax, so a lack causes painful cramps.","Magnesium is light yet strong, making it great for laptop and car frames."],"vi":["Magie cháy với ánh sáng trắng chói lóa từng dùng trong đèn flash máy ảnh cũ.","Cơ bắp cần magie để thư giãn, nên thiếu nó sẽ gây chuột rút đau đớn.","Magie nhẹ mà bền, rất hợp để làm khung laptop và xe hơi."]},
-{"z":13,"en":["Aluminium was once more precious than gold before easy ways to extract it.","Recycling aluminium cans uses only about 5% of the original energy.","A thin invisible oxide layer protects aluminium from rusting away."],"vi":["Nhôm từng quý hơn cả vàng trước khi người ta tìm ra cách tách dễ dàng.","Tái chế lon nhôm chỉ tốn khoảng 5% năng lượng so với sản xuất mới.","Một lớp oxit mỏng vô hình bảo vệ nhôm khỏi bị gỉ sét."]},
-{"z":14,"en":["Silicon chips are the brains inside every computer and smartphone.","Sand and glass are mostly silicon combined with oxygen.","Silicon Valley is named after this element that powers modern technology."],"vi":["Chip silicon là bộ não bên trong mọi máy tính và điện thoại thông minh.","Cát và thủy tinh phần lớn là silicon kết hợp với oxy.","Thung lũng Silicon được đặt tên theo nguyên tố cung cấp sức mạnh cho công nghệ."]},
-{"z":15,"en":["Phosphorus glows in the dark and gave us the word 'phosphorescence'.","Your DNA and bones rely on phosphorus to hold themselves together.","Match heads use phosphorus to burst into flame with a quick strike."],"vi":["Photpho phát sáng trong bóng tối và cho ta từ 'lân quang'.","DNA và xương của bạn dựa vào photpho để giữ kết cấu vững chắc.","Đầu que diêm dùng photpho để bùng cháy khi quẹt nhanh."]},
-{"z":16,"en":["Sulfur gives rotten eggs and stink bombs their disgusting smell.","Volcanoes spew yellow sulfur that crusts around their fiery vents.","Sulfur is used to make rubber tough enough for car tires."],"vi":["Lưu huỳnh tạo ra mùi kinh tởm của trứng thối và bom thối.","Núi lửa phun ra lưu huỳnh vàng đóng cặn quanh miệng phun nóng bỏng.","Lưu huỳnh được dùng để làm cao su đủ bền cho lốp xe hơi."]},
-{"z":17,"en":["Chlorine keeps swimming pools clean by killing germs in the water.","Chlorine gas was used as a deadly weapon during World War One.","Half of ordinary table salt is actually chlorine bonded to sodium."],"vi":["Clo giữ hồ bơi sạch sẽ bằng cách tiêu diệt vi khuẩn trong nước.","Khí clo từng được dùng làm vũ khí chết người trong Thế chiến thứ nhất.","Một nửa muối ăn thông thường thực ra là clo gắn với natri."]},
-{"z":18,"en":["Argon fills light bulbs to stop the glowing filament from burning up.","Argon is the third most common gas in the air you breathe.","Its name means 'lazy' because argon refuses to react with anything."],"vi":["Argon được bơm vào bóng đèn để dây tóc rực sáng không bị cháy đứt.","Argon là khí phổ biến thứ ba trong không khí bạn hít thở.","Tên của nó nghĩa là 'lười biếng' vì argon không chịu phản ứng với gì."]},
-{"z":19,"en":["Bananas are slightly radioactive because they're packed with potassium.","Your heartbeat depends on potassium moving in and out of cells.","Potassium reacts with water so violently it bursts into purple flames."],"vi":["Chuối hơi có tính phóng xạ vì chứa rất nhiều kali.","Nhịp tim của bạn phụ thuộc vào kali di chuyển ra vào tế bào.","Kali phản ứng với nước mạnh đến mức bùng cháy thành ngọn lửa tím."]},
-{"z":20,"en":["Calcium makes your bones and teeth strong and hard.","Chalk, seashells, and limestone are all made of calcium compounds.","Pure calcium metal is soft enough to cut and reacts with water."],"vi":["Canxi làm cho xương và răng của bạn chắc khỏe và cứng cáp.","Phấn, vỏ sò và đá vôi đều được tạo từ hợp chất canxi.","Canxi kim loại nguyên chất mềm đến mức cắt được và phản ứng với nước."]},
-{"z":21,"en":["Scandium makes bicycle frames and baseball bats super light and strong.","A single gram of scandium can cost more than gold.","Scandium-laced lights mimic sunlight in stadiums and film studios."],"vi":["Scandi giúp khung xe đạp và gậy bóng chày siêu nhẹ mà chắc.","Một gram scandi có thể đắt hơn cả vàng.","Đèn pha trộn scandi mô phỏng ánh nắng trong sân vận động và phim trường."]},
-{"z":22,"en":["Titanium is as strong as steel but far lighter, perfect for jets.","Surgeons use titanium for implants because the body doesn't reject it.","Titanium dioxide makes sunscreen, paint, and even toothpaste bright white."],"vi":["Titan cứng như thép nhưng nhẹ hơn nhiều, hoàn hảo cho máy bay phản lực.","Bác sĩ dùng titan làm bộ phận cấy ghép vì cơ thể không đào thải nó.","Titan dioxit làm kem chống nắng, sơn và cả kem đánh răng trắng sáng."]},
-{"z":23,"en":["Vanadium makes steel tougher, used in tools and high-strength car parts.","Vanadium compounds can be green, blue, purple, or yellow in solution.","Some sea creatures collect vanadium in their blood at high levels."],"vi":["Vanadi làm thép cứng hơn, dùng trong dụng cụ và bộ phận xe siêu bền.","Hợp chất vanadi có thể xanh lá, xanh dương, tím hoặc vàng khi hòa tan.","Một số sinh vật biển tích lũy vanadi trong máu với hàm lượng cao."]},
-{"z":24,"en":["Chromium gives shiny chrome bumpers and faucets their mirror-like sparkle.","Rubies and emeralds get their rich colors from traces of chromium.","Stainless steel resists rust thanks to a hidden chromium coating."],"vi":["Crom tạo nên ánh lấp lánh như gương cho cản xe và vòi nước mạ crom.","Hồng ngọc và lục bảo có màu rực rỡ nhờ dấu vết của crom.","Thép không gỉ chống gỉ nhờ một lớp crom ẩn bên ngoài."]},
-{"z":25,"en":["Manganese turns glass purple and was used in ancient cave paintings.","Your body needs tiny amounts of manganese for healthy bones and enzymes.","Manganese makes steel harder, used in railway tracks and helmets."],"vi":["Mangan làm thủy tinh ngả tím và từng được dùng trong tranh vẽ hang động cổ.","Cơ thể bạn cần một chút mangan để xương và enzyme khỏe mạnh.","Mangan làm thép cứng hơn, dùng cho đường ray và mũ bảo hộ."]},
-{"z":26,"en":["Iron in your blood is what makes it red and carries oxygen around.","Earth's core is mostly iron, and it creates our protective magnetic field.","Most of the iron on Earth was forged inside exploding stars."],"vi":["Sắt trong máu bạn khiến nó có màu đỏ và mang oxy đi khắp cơ thể.","Lõi Trái Đất chủ yếu là sắt, tạo ra từ trường bảo vệ chúng ta.","Phần lớn sắt trên Trái Đất được rèn bên trong các ngôi sao phát nổ."]},
-{"z":27,"en":["Cobalt gives glass and ceramics a gorgeous deep blue color.","Cobalt is a key ingredient in the batteries of electric cars.","The word cobalt comes from a German goblin blamed for tricky ores."],"vi":["Coban tạo cho thủy tinh và gốm sứ màu xanh dương đậm tuyệt đẹp.","Coban là thành phần quan trọng trong pin của xe điện.","Tên coban bắt nguồn từ một con yêu tinh Đức bị đổ lỗi vì quặng khó nấu."]},
-{"z":28,"en":["Nickel makes coins shiny and stops them from corroding over time.","Nickel mixed with iron makes magnets and tough stainless steel.","Many meteorites that crash to Earth are rich in iron and nickel."],"vi":["Niken làm đồng xu sáng bóng và ngăn chúng bị ăn mòn theo thời gian.","Niken trộn với sắt tạo ra nam châm và thép không gỉ siêu bền.","Nhiều thiên thạch rơi xuống Trái Đất giàu sắt và niken."]},
-{"z":29,"en":["Copper kills germs on touch, so hospitals use it on door handles.","The Statue of Liberty is green because its copper skin oxidized.","Copper conducts electricity so well it wires up most of your home."],"vi":["Đồng diệt khuẩn khi chạm vào, nên bệnh viện dùng nó làm tay nắm cửa.","Tượng Nữ thần Tự do có màu xanh vì lớp da đồng đã bị oxy hóa.","Đồng dẫn điện tốt đến mức được dùng để đi dây cho hầu hết ngôi nhà bạn."]},
-{"z":30,"en":["Zinc helps your immune system fight off colds and heal wounds.","Galvanized metal is coated in zinc to protect it from rusting.","Sunscreen often uses zinc oxide to block harmful UV rays."],"vi":["Kẽm giúp hệ miễn dịch chống cảm lạnh và làm lành vết thương.","Kim loại mạ kẽm được phủ kẽm để bảo vệ khỏi bị gỉ sét.","Kem chống nắng thường dùng kẽm oxit để chặn tia UV có hại."]},
-{"z":31,"en":["Gallium melts in your hand because its melting point is just below body temperature.","Pranksters make 'disappearing' spoons from gallium that melt in hot tea.","Gallium is key to LEDs and the chips inside your smartphone."],"vi":["Gali tan chảy ngay trong lòng bàn tay vì điểm nóng chảy thấp hơn nhiệt độ cơ thể.","Người ta làm thìa 'biến mất' từ gali, tan ra khi khuấy trà nóng.","Gali là thành phần quan trọng của đèn LED và con chip trong điện thoại của bạn."]},
-{"z":32,"en":["Germanium was predicted by Mendeleev years before anyone actually found it.","Early transistors used germanium before silicon took over the tech world.","Germanium lets infrared light pass through, so it's used in night-vision lenses."],"vi":["Mendeleev đã tiên đoán germani nhiều năm trước khi có người tìm ra nó.","Transistor đầu tiên dùng germani trước khi silic thống trị thế giới công nghệ.","Germani cho ánh sáng hồng ngoại đi qua nên được dùng làm thấu kính nhìn đêm."]},
-{"z":33,"en":["Arsenic was the favourite poison of killers in old murder mysteries.","Tiny amounts of arsenic once colored Victorian wallpaper a deadly green.","Arsenic is added to some semiconductors to control how they conduct electricity."],"vi":["Asen từng là chất độc ưa thích của những kẻ giết người trong truyện trinh thám xưa.","Một lượng nhỏ asen từng nhuộm giấy dán tường thời Victoria thành màu xanh chết người.","Asen được thêm vào vài loại bán dẫn để điều khiển khả năng dẫn điện."]},
-{"z":34,"en":["Selenium in anti-dandruff shampoo helps fight a flaky, itchy scalp.","Your body needs a tiny bit of selenium to keep your thyroid healthy.","Selenium's electrical resistance drops in light, which inspired early photocopiers."],"vi":["Selen trong dầu gội trị gàu giúp chống da đầu bong tróc và ngứa.","Cơ thể bạn cần một chút selen để giữ tuyến giáp khỏe mạnh.","Điện trở của selen giảm khi gặp ánh sáng, từng truyền cảm hứng cho máy photocopy đầu tiên."]},
-{"z":35,"en":["Bromine is one of only two elements that are liquid at room temperature.","Bromine got its name from a Greek word meaning 'stench' because it reeks.","Bromine compounds were once added to plastics to stop them catching fire."],"vi":["Brom là một trong hai nguyên tố duy nhất tồn tại dạng lỏng ở nhiệt độ phòng.","Brom được đặt tên từ tiếng Hy Lạp nghĩa là 'mùi hôi' vì nó bốc mùi kinh khủng.","Hợp chất brom từng được thêm vào nhựa để chống bắt lửa."]},
-{"z":36,"en":["Krypton isn't just Superman's home; it's a real gas in our air.","Krypton glows whitish in lamps and helps make airport runway lights super bright.","Krypton once defined the official length of a meter using its light."],"vi":["Krypton không chỉ là quê hương Superman mà là khí có thật trong không khí.","Krypton phát sáng trắng trong đèn và giúp đèn đường băng sân bay cực sáng.","Krypton từng được dùng để định nghĩa độ dài chính thức của mét bằng ánh sáng của nó."]},
-{"z":37,"en":["Rubidium is so reactive it can burst into flames in plain air.","Atomic clocks use rubidium to keep time accurate to billionths of a second.","Rubidium melts at about 39°C, so a warm day could turn it liquid."],"vi":["Rubidi phản ứng mạnh đến mức có thể bốc cháy trong không khí thường.","Đồng hồ nguyên tử dùng rubidi để giữ thời gian chính xác đến phần tỉ giây.","Rubidi nóng chảy ở khoảng 39°C, nên một ngày nóng có thể khiến nó hóa lỏng."]},
-{"z":38,"en":["Strontium paints the brilliant red bursts you see in fireworks.","Strontium is added to some toothpastes to calm sensitive teeth.","Doctors use a radioactive form of strontium to treat certain bone cancers."],"vi":["Stronti tạo nên những vệt đỏ rực rỡ mà bạn thấy trong pháo hoa.","Stronti được thêm vào vài loại kem đánh răng để làm dịu răng nhạy cảm.","Bác sĩ dùng một dạng phóng xạ của stronti để điều trị vài loại ung thư xương."]},
-{"z":39,"en":["Yttrium helps make the red glow in old color TV and computer screens.","Yttrium is used in powerful lasers that doctors use for eye surgery.","Adding yttrium makes some metals tougher and able to survive extreme heat."],"vi":["Yttri giúp tạo màu đỏ phát sáng trong màn hình tivi và máy tính màu đời cũ.","Yttri được dùng trong laser mạnh mà bác sĩ dùng để phẫu thuật mắt.","Thêm yttri giúp vài kim loại cứng hơn và chịu được nhiệt độ cực cao."]},
-{"z":40,"en":["Fake diamonds called cubic zirconia are made from a zirconium compound.","Zirconium barely reacts with the body, so it's used in artificial hip joints.","Nuclear reactors wrap their fuel in zirconium because it lets neutrons pass through."],"vi":["Kim cương giả gọi là cubic zirconia được làm từ một hợp chất của zirconi.","Zirconi gần như không phản ứng với cơ thể nên được dùng làm khớp hông nhân tạo.","Lò phản ứng hạt nhân bọc nhiên liệu bằng zirconi vì nó cho neutron đi qua."]},
-{"z":41,"en":["Niobium magnets are so powerful they're used in MRI scanners at hospitals.","Niobium turns dazzling rainbow colors when an electric current touches it.","Niobium alloys keep their strength even in the freezing cold of space rockets."],"vi":["Nam châm niobi mạnh đến mức được dùng trong máy chụp MRI ở bệnh viện.","Niobi chuyển sang màu cầu vồng lấp lánh khi có dòng điện chạm vào.","Hợp kim niobi vẫn giữ độ bền ngay cả trong cái lạnh giá của tên lửa vũ trụ."]},
-{"z":42,"en":["Molybdenum makes steel super strong, so it's used in tank armor and tools.","Plants and your own body need a little molybdenum to work properly.","Molybdenum has one of the highest melting points of all common metals."],"vi":["Molypden làm thép cực bền nên được dùng trong giáp xe tăng và dụng cụ.","Cây cối và cả cơ thể bạn cần một chút molypden để hoạt động bình thường.","Molypden có một trong những điểm nóng chảy cao nhất trong các kim loại thông dụng."]},
-{"z":43,"en":["Technetium was the first element ever made by humans in a lab.","Hospitals inject technetium to make organs glow in medical scans.","Technetium has no stable form, so every atom of it is radioactive."],"vi":["Tecneti là nguyên tố đầu tiên do con người tạo ra trong phòng thí nghiệm.","Bệnh viện tiêm tecneti để làm các cơ quan phát sáng trong ảnh chụp y khoa.","Tecneti không có dạng bền, nên mọi nguyên tử của nó đều phóng xạ."]},
-{"z":44,"en":["Ruthenium added to gold makes jewelry far more scratch-resistant.","A few atoms of ruthenium boost the storage of computer hard drives.","Ruthenium is one of the rarest metals found in Earth's crust."],"vi":["Ruteni thêm vào vàng làm trang sức chống trầy xước tốt hơn nhiều.","Vài nguyên tử ruteni giúp tăng dung lượng ổ cứng máy tính.","Ruteni là một trong những kim loại hiếm nhất trong vỏ Trái Đất."]},
-{"z":45,"en":["Rhodium is so rare and shiny it's often more expensive than gold.","Rhodium in your car's catalytic converter cleans up toxic exhaust gases.","A thin rhodium coating gives white gold jewelry its bright mirror shine."],"vi":["Rhodi hiếm và sáng bóng đến mức thường đắt hơn cả vàng.","Rhodi trong bộ chuyển đổi xúc tác của xe hơi làm sạch khí thải độc hại.","Lớp phủ rhodi mỏng tạo độ sáng như gương cho trang sức vàng trắng."]},
-{"z":46,"en":["Palladium can soak up hundreds of times its own volume in hydrogen gas.","Like rhodium, palladium scrubs poisonous gases from car exhaust.","Some dentists use palladium in crowns and bridges for your teeth."],"vi":["Paladi có thể hấp thụ khí hydro gấp hàng trăm lần thể tích của chính nó.","Giống rhodi, paladi lọc khí độc từ khí thải xe hơi.","Một số nha sĩ dùng paladi trong mão và cầu răng cho bạn."]},
-{"z":47,"en":["Silver kills bacteria, so it's woven into socks to fight foot odor.","Silver is the best conductor of electricity of any metal on Earth.","Old photographs relied on light-sensitive silver to capture their images."],"vi":["Bạc diệt khuẩn nên được dệt vào tất để chống mùi hôi chân.","Bạc là kim loại dẫn điện tốt nhất trong tất cả kim loại trên Trái Đất.","Ảnh chụp ngày xưa dựa vào bạc nhạy sáng để ghi lại hình ảnh."]},
-{"z":48,"en":["Cadmium gives some artists' paints their bright yellow and red colors.","Old rechargeable batteries used cadmium before safer types replaced them.","Cadmium is toxic, so it's being phased out of many everyday products."],"vi":["Cadimi tạo màu vàng và đỏ rực rỡ cho một số loại sơn của họa sĩ.","Pin sạc đời cũ dùng cadimi trước khi các loại an toàn hơn thay thế.","Cadimi độc hại nên đang dần bị loại khỏi nhiều sản phẩm hằng ngày."]},
-{"z":49,"en":["Indium makes the see-through coating on touchscreens that senses your finger.","Indium is so soft you can scratch it with your fingernail.","Indium screams a high-pitched 'cry' when you bend a bar of it."],"vi":["Indi tạo lớp phủ trong suốt trên màn hình cảm ứng nhận biết ngón tay bạn.","Indi mềm đến mức bạn có thể cào xước nó bằng móng tay.","Indi phát ra tiếng 'rít' the thé khi bạn bẻ cong một thanh của nó."]},
-{"z":50,"en":["Tin coats steel cans to stop your canned food from rusting.","Bending a tin bar makes a crackling sound called the 'tin cry'.","In bitter cold, tin can crumble into powder, a problem called 'tin pest'."],"vi":["Thiếc phủ lên lon thép để giữ thức ăn đóng hộp khỏi gỉ sét.","Bẻ cong thanh thiếc tạo ra tiếng lách tách gọi là 'tiếng khóc của thiếc'.","Trong giá lạnh, thiếc có thể vụn thành bột, gọi là 'bệnh dịch thiếc'."]},
-{"z":51,"en":["Antimony was used as black eyeliner makeup thousands of years ago.","Antimony in plastics and fabrics helps stop them from bursting into flame.","Ancient people thought antimony pills could be reused after passing through the body."],"vi":["Antimon từng được dùng làm phấn kẻ mắt đen từ hàng ngàn năm trước.","Antimon trong nhựa và vải giúp chúng không dễ bùng cháy.","Người xưa tin rằng viên antimon có thể tái sử dụng sau khi đi qua cơ thể."]},
-{"z":52,"en":["Eating tiny amounts of tellurium makes your breath reek of garlic for weeks.","Tellurium is used in some solar panels to turn sunlight into electricity.","Tellurium is rarer on Earth than gold or platinum."],"vi":["Ăn một lượng nhỏ telua khiến hơi thở bạn nồng mùi tỏi suốt nhiều tuần.","Telua được dùng trong vài tấm pin mặt trời để biến ánh nắng thành điện.","Telua trên Trái Đất còn hiếm hơn cả vàng hay bạch kim."]},
-{"z":53,"en":["Your thyroid gland needs iodine, which is why it's added to table salt.","Iodine turns a striking blue-black when it touches starchy foods like potato.","Brown iodine solution is painted on skin to kill germs before surgery."],"vi":["Tuyến giáp của bạn cần iốt, đó là lý do nó được thêm vào muối ăn.","Iốt chuyển sang màu xanh đen nổi bật khi chạm vào thức ăn chứa tinh bột như khoai tây.","Dung dịch iốt nâu được bôi lên da để diệt khuẩn trước khi phẫu thuật."]},
-{"z":54,"en":["Xenon gas can knock you out and is used as a safe anesthetic.","Powerful xenon lamps light up car headlights and movie projectors.","Some spacecraft thrusters fire ionized xenon to glide through deep space."],"vi":["Khí xenon có thể khiến bạn bất tỉnh và được dùng làm thuốc gây mê an toàn.","Đèn xenon mạnh thắp sáng đèn pha xe hơi và máy chiếu phim.","Vài động cơ tàu vũ trụ phun xenon ion hóa để lướt qua không gian sâu thẳm."]},
-{"z":55,"en":["Caesium powers the atomic clocks that officially define one second.","Caesium is the softest metal and melts just above room temperature.","Caesium reacts with water so violently it can shatter the container."],"vi":["Xesi vận hành những đồng hồ nguyên tử chính thức định nghĩa một giây.","Xesi là kim loại mềm nhất và nóng chảy chỉ hơi trên nhiệt độ phòng.","Xesi phản ứng với nước dữ dội đến mức có thể làm vỡ bình chứa."]},
-{"z":56,"en":["You swallow a barium drink so your stomach shows up clearly on X-rays.","Barium gives fireworks their bright green exploding colors.","Pure barium is so reactive it must be stored under oil to stay safe."],"vi":["Bạn uống dung dịch bari để dạ dày hiện rõ trên ảnh chụp X-quang.","Bari tạo màu xanh lá rực rỡ khi pháo hoa nổ.","Bari nguyên chất phản ứng mạnh đến mức phải bảo quản dưới dầu cho an toàn."]},
-{"z":57,"en":["Lanthanum makes camera lenses clearer by bending light beautifully.","Lanthanum hides inside the batteries of many hybrid electric cars.","Lanthanum gave its whole element family the name 'lanthanides'."],"vi":["Lantan giúp ống kính máy ảnh trong hơn nhờ bẻ cong ánh sáng tuyệt đẹp.","Lantan ẩn bên trong pin của nhiều xe điện hybrid.","Lantan đặt tên cho cả họ nguyên tố của nó là 'lantanit'."]},
-{"z":58,"en":["Cerium is the spark in lighter flints that ignites the flame.","Cerium polishing powder is used to grind and smooth glass lenses.","Cerium is the most abundant of all the rare-earth elements."],"vi":["Xeri là tia lửa trong đá bật lửa giúp nhóm lên ngọn lửa.","Bột đánh bóng xeri được dùng để mài và làm nhẵn thấu kính thủy tinh.","Xeri là nguyên tố phổ biến nhất trong tất cả các nguyên tố đất hiếm."]},
-{"z":59,"en":["Praseodymium makes the dark glass that protects welders' eyes from glare.","Mixed with other metals, praseodymium creates super-strong magnets.","Praseodymium gives a beautiful yellow-green color to special glass and enamel."],"vi":["Praseodymi tạo nên loại kính sẫm màu bảo vệ mắt thợ hàn khỏi chói lóa.","Khi trộn với kim loại khác, praseodymi tạo ra nam châm cực mạnh.","Praseodymi tạo màu vàng lục tuyệt đẹp cho thủy tinh và men đặc biệt."]},
-{"z":60,"en":["Neodymium magnets are the strongest on Earth and can pinch your fingers hard.","Tiny neodymium magnets power the speakers in your phone and earbuds.","Neodymium creates the deep red light inside many powerful lasers."],"vi":["Nam châm neodymi là loại mạnh nhất Trái Đất và có thể kẹp đau ngón tay bạn.","Nam châm neodymi tí hon vận hành loa trong điện thoại và tai nghe của bạn.","Neodymi tạo ra ánh sáng đỏ thẫm bên trong nhiều loại laser mạnh."]},
-{"z":61,"en":["Promethium is so radioactive it actually glows in the dark on its own.","It's named after Prometheus, the Greek titan who stole fire from the gods.","There's almost none on Earth, so scientists make it inside nuclear reactors."],"vi":["Promethium phóng xạ mạnh đến mức tự phát sáng trong bóng tối.","Nó được đặt theo tên Prometheus, vị titan Hy Lạp đánh cắp lửa của các vị thần.","Trên Trái Đất gần như không có nó, nên các nhà khoa học tạo ra nó trong lò phản ứng hạt nhân."]},
-{"z":62,"en":["Samarium magnets stay magnetic even when heated red-hot, unlike normal magnets.","It was the first element ever named after a person, a Russian mining official.","Doctors use a samarium isotope to ease bone pain in cancer patients."],"vi":["Nam châm samarium vẫn giữ từ tính ngay cả khi nóng đỏ, khác với nam châm thường.","Đây là nguyên tố đầu tiên được đặt theo tên một người, một quan chức mỏ người Nga.","Bác sĩ dùng một đồng vị samarium để giảm đau xương cho bệnh nhân ung thư."]},
-{"z":63,"en":["Europium makes the red and blue glow in older TV screens and energy-saving bulbs.","It's hidden in euro banknotes and glows under UV light to stop counterfeiters.","It's the most reactive rare-earth metal, fizzing quickly in water."],"vi":["Europium tạo ra ánh đỏ và xanh trên màn hình TV cũ và bóng đèn tiết kiệm điện.","Nó được giấu trong tờ tiền euro và phát sáng dưới tia UV để chống làm giả.","Đây là kim loại đất hiếm hoạt động mạnh nhất, sủi bọt nhanh trong nước."]},
-{"z":64,"en":["Gadolinium gets injected into patients to make MRI scans show up clearer.","It's strongly magnetic but loses that power right around room temperature.","It can soak up neutrons, so it helps control nuclear reactors."],"vi":["Gadolinium được tiêm vào bệnh nhân để ảnh chụp MRI hiện rõ hơn.","Nó có từ tính mạnh nhưng mất khả năng đó ngay quanh nhiệt độ phòng.","Nó hấp thụ neutron rất tốt, nên giúp kiểm soát lò phản ứng hạt nhân."]},
-{"z":65,"en":["Terbium makes the green glow you see in fluorescent lamps and old TV pixels.","It changes shape slightly in a magnetic field, useful in tiny speakers and sensors.","Just a pinch is added to make energy-efficient lighting possible."],"vi":["Terbium tạo ra ánh xanh lá bạn thấy trong đèn huỳnh quang và điểm ảnh TV cũ.","Nó thay đổi hình dạng nhẹ trong từ trường, hữu ích cho loa nhỏ và cảm biến.","Chỉ cần một nhúm nhỏ là đủ để tạo ra đèn chiếu sáng tiết kiệm điện."]},
-{"z":66,"en":["Dysprosium's name means 'hard to get' in Greek, because it was tough to isolate.","It's a secret ingredient in the powerful magnets inside wind turbines.","It keeps electric-car motor magnets working even when they get really hot."],"vi":["Tên dysprosium nghĩa là 'khó lấy được' trong tiếng Hy Lạp, vì rất khó tách ra.","Nó là thành phần bí mật trong nam châm mạnh bên trong tua-bin gió.","Nó giúp nam châm động cơ xe điện hoạt động ngay cả khi nóng lên rất nhiều."]},
-{"z":67,"en":["Holmium creates the world's strongest magnetic fields in lab magnets.","Holmium lasers are used to safely blast apart kidney stones inside the body.","It gives glass and gemstones a striking yellow or red color."],"vi":["Holmium tạo ra từ trường mạnh nhất thế giới trong các nam châm phòng thí nghiệm.","Laser holmium được dùng để phá sỏi thận an toàn bên trong cơ thể.","Nó nhuộm thủy tinh và đá quý màu vàng hoặc đỏ nổi bật."]},
-{"z":68,"en":["Erbium amplifies light signals inside the fiber-optic cables that power the internet.","It tints glass and sunglasses a beautiful pink color.","Erbium lasers are used in skin treatments to smooth scars and wrinkles."],"vi":["Erbium khuếch đại tín hiệu ánh sáng trong cáp quang giúp internet hoạt động.","Nó nhuộm thủy tinh và kính râm một màu hồng đẹp mắt.","Laser erbium được dùng trong điều trị da để làm mờ sẹo và nếp nhăn."]},
-{"z":69,"en":["Thulium is one of the rarest natural elements, making it pricey to use.","It was once used in portable X-ray machines that needed no electricity.","Thulium lasers can cut and seal tissue during surgery at the same time."],"vi":["Thulium là một trong những nguyên tố tự nhiên hiếm nhất, nên rất đắt khi dùng.","Nó từng được dùng trong máy X-quang xách tay không cần điện.","Laser thulium có thể vừa cắt vừa làm kín mô trong phẫu thuật cùng lúc."]},
-{"z":70,"en":["Ytterbium atoms tick so steadily they power some of the world's most accurate clocks.","Its electrical resistance changes under pressure, so it can measure earthquakes.","It's named after Ytterby, a tiny Swedish village that gave four elements their names."],"vi":["Nguyên tử ytterbium dao động đều đến mức tạo ra vài chiếc đồng hồ chính xác nhất thế giới.","Điện trở của nó thay đổi dưới áp suất, nên có thể đo động đất.","Nó được đặt theo Ytterby, một ngôi làng Thụy Điển nhỏ đặt tên cho bốn nguyên tố."]},
-{"z":71,"en":["Lutetium is the heaviest and one of the rarest rare-earth metals.","Geologists use it like a stopwatch to date meteorites and ancient rocks.","A lutetium compound helps PET scanners detect cancer in the body."],"vi":["Lutetium là kim loại đất hiếm nặng nhất và hiếm bậc nhất.","Các nhà địa chất dùng nó như đồng hồ bấm giờ để xác định tuổi thiên thạch và đá cổ.","Một hợp chất lutetium giúp máy quét PET phát hiện ung thư trong cơ thể."]},
-{"z":72,"en":["Hafnium can take the heat, melting only above 2,200 degrees Celsius.","It's used in the control rods that safely shut down nuclear submarines' reactors.","A thin hafnium layer made modern computer chips faster and less power-hungry."],"vi":["Hafnium chịu nhiệt cực tốt, chỉ nóng chảy trên 2.200 độ C.","Nó được dùng trong thanh điều khiển để tắt an toàn lò phản ứng tàu ngầm hạt nhân.","Một lớp hafnium mỏng giúp chip máy tính hiện đại nhanh hơn và tốn ít điện hơn."]},
-{"z":73,"en":["Tantalum capacitors are tiny but vital parts inside almost every phone and laptop.","It's so body-friendly that it's used in surgical implants and bone repairs.","Its name comes from Tantalus, a Greek figure cursed with eternal thirst."],"vi":["Tụ điện tantalum nhỏ xíu nhưng là bộ phận thiết yếu trong hầu hết điện thoại và laptop.","Nó thân thiện với cơ thể đến mức được dùng làm cấy ghép phẫu thuật và vá xương.","Tên của nó đến từ Tantalus, nhân vật Hy Lạp bị nguyền rủa khát nước mãi mãi."]},
-{"z":74,"en":["Tungsten has the highest melting point of any metal, over 3,400 degrees Celsius.","It was the glowing filament inside old-fashioned light bulbs.","Its incredible density makes it perfect for darts, drills, and armor-piercing tools."],"vi":["Tungsten có nhiệt độ nóng chảy cao nhất trong mọi kim loại, trên 3.400 độ C.","Nó từng là sợi tóc phát sáng bên trong bóng đèn kiểu cũ.","Mật độ cực cao khiến nó hoàn hảo cho phi tiêu, mũi khoan và dụng cụ xuyên giáp."]},
-{"z":75,"en":["Rhenium was one of the last stable natural elements ever discovered.","Jet engine blades contain rhenium so they survive blazing-hot flight.","It's so rare and useful that it's one of the most expensive metals around."],"vi":["Rhenium là một trong những nguyên tố tự nhiên ổn định cuối cùng được phát hiện.","Cánh động cơ phản lực chứa rhenium để chịu được sức nóng dữ dội khi bay.","Nó hiếm và hữu ích đến mức là một trong những kim loại đắt nhất."]},
-{"z":76,"en":["Osmium is the densest natural element, so a small chunk feels shockingly heavy.","It's used to make ultra-hard tips for fountain pens and instrument needles.","Its name means 'smell' because one of its compounds reeks terribly."],"vi":["Osmium là nguyên tố tự nhiên đặc nhất, nên một cục nhỏ cũng nặng đến bất ngờ.","Nó được dùng làm đầu bút siêu cứng cho bút máy và kim của dụng cụ.","Tên của nó nghĩa là 'mùi' vì một hợp chất của nó bốc mùi kinh khủng."]},
-{"z":77,"en":["A layer of iridium worldwide is the smoking gun for the asteroid that killed the dinosaurs.","It's one of the most corrosion-resistant metals, barely reacting with anything.","The original metre standard bar was made from an iridium-platinum alloy."],"vi":["Một lớp iridium khắp thế giới là bằng chứng về tiểu hành tinh đã tiêu diệt khủng long.","Nó là một trong những kim loại chống ăn mòn tốt nhất, hầu như không phản ứng với gì.","Thanh chuẩn mét nguyên gốc được làm từ hợp kim iridium-platin."]},
-{"z":78,"en":["Platinum sits inside car exhausts, turning toxic fumes into safer gases.","It's so rare that all the platinum ever mined would barely fill a living room.","Jewelers love it because it almost never tarnishes or fades."],"vi":["Platin nằm trong ống xả xe hơi, biến khí độc thành khí an toàn hơn.","Nó hiếm đến mức toàn bộ platin từng khai thác chỉ vừa lấp đầy một phòng khách.","Thợ kim hoàn yêu thích nó vì nó hầu như không bao giờ xỉn màu hay phai."]},
-{"z":79,"en":["Nearly all the gold on Earth was forged by colliding neutron stars in space.","Gold never rusts, which is why ancient treasures still shine today.","It's so soft you could hammer one gram into a sheet covering a small room."],"vi":["Gần như toàn bộ vàng trên Trái Đất được tạo ra khi các sao neutron va chạm trong vũ trụ.","Vàng không bao giờ gỉ, đó là lý do kho báu cổ vẫn sáng lấp lánh đến nay.","Nó mềm đến mức một gram có thể dát thành tấm phủ kín một căn phòng nhỏ."]},
-{"z":80,"en":["Mercury is the only metal that's liquid at room temperature.","Old hat-makers got poisoned by it, inspiring the phrase 'mad as a hatter'.","Its symbol Hg comes from 'hydrargyrum', Greek for 'liquid silver'."],"vi":["Thủy ngân là kim loại duy nhất ở thể lỏng tại nhiệt độ phòng.","Thợ làm mũ xưa bị nó đầu độc, tạo nên câu 'điên như thợ làm mũ'.","Ký hiệu Hg của nó đến từ 'hydrargyrum', tiếng Hy Lạp nghĩa là 'bạc lỏng'."]},
-{"z":81,"en":["Thallium is so toxic and tasteless it earned the nickname 'the poisoner's poison'.","It was once used to kill rats and ants before being banned for safety.","A thallium isotope helps doctors take pictures of the beating heart."],"vi":["Thallium độc và không vị đến mức bị gọi là 'chất độc của kẻ đầu độc'.","Nó từng được dùng để diệt chuột và kiến trước khi bị cấm vì an toàn.","Một đồng vị thallium giúp bác sĩ chụp ảnh trái tim đang đập."]},
-{"z":82,"en":["Lead aprons protect you from radiation during dental and medical X-rays.","Romans used lead pipes and cups, which slowly poisoned many of them.","It's so dense and soft it was long used in pencils' ancestors and bullets."],"vi":["Áo chì bảo vệ bạn khỏi bức xạ khi chụp X-quang răng và y tế.","Người La Mã dùng ống và cốc bằng chì, khiến nhiều người bị nhiễm độc từ từ.","Nó đặc và mềm đến mức từ lâu được dùng làm đạn và tổ tiên của bút chì."]},
-{"z":83,"en":["Bismuth forms stunning rainbow staircase crystals when it cools slowly.","It's the main ingredient in pink stomach medicines like Pepto-Bismol.","Once thought stable, it's actually radioactive, but unbelievably slowly."],"vi":["Bismuth tạo ra những tinh thể cầu thang cầu vồng tuyệt đẹp khi nguội chậm.","Nó là thành phần chính trong thuốc dạ dày màu hồng như Pepto-Bismol.","Từng được cho là ổn định, nhưng thật ra nó phóng xạ, chỉ là cực kỳ chậm."]},
-{"z":84,"en":["Polonium is so deadly that an amount smaller than a grain of salt can kill.","Marie Curie discovered it and named it after her homeland, Poland.","It was used in a famous real-life spy poisoning case in 2006."],"vi":["Polonium độc đến mức một lượng nhỏ hơn hạt muối cũng có thể giết người.","Marie Curie phát hiện ra nó và đặt tên theo quê hương bà, Ba Lan.","Nó từng được dùng trong một vụ đầu độc gián điệp có thật nổi tiếng năm 2006."]},
-{"z":85,"en":["Astatine is the rarest natural element; less than a teaspoon exists on Earth at once.","It's so radioactive it would vaporize itself before you could see a visible chunk.","Scientists are testing it to deliver radiation directly to cancer cells."],"vi":["Astatine là nguyên tố tự nhiên hiếm nhất; cả Trái Đất chỉ có chưa tới một thìa cà phê.","Nó phóng xạ mạnh đến mức tự bốc hơi trước khi bạn thấy được một mẩu nhìn rõ.","Các nhà khoa học đang thử dùng nó để đưa bức xạ thẳng vào tế bào ung thư."]},
-{"z":86,"en":["Radon is an invisible radioactive gas that can seep into homes from the ground.","It's the second leading cause of lung cancer after smoking.","Despite being a noble gas, it's the heaviest one and quite dangerous."],"vi":["Radon là khí phóng xạ vô hình có thể thấm vào nhà từ dưới lòng đất.","Nó là nguyên nhân gây ung thư phổi đứng thứ hai, chỉ sau hút thuốc.","Dù là khí hiếm, nó là loại nặng nhất và khá nguy hiểm."]},
-{"z":87,"en":["Francium is one of the rarest elements; only a few atoms exist naturally at any time.","It's so unstable that no one has ever collected enough to actually see it.","It was the last element discovered in nature, found in 1939."],"vi":["Francium là một trong những nguyên tố hiếm nhất; tự nhiên chỉ có vài nguyên tử mỗi lúc.","Nó bất ổn đến mức chưa ai từng thu đủ để thực sự nhìn thấy nó.","Đây là nguyên tố cuối cùng được phát hiện trong tự nhiên, vào năm 1939."]},
-{"z":88,"en":["Radium glows a faint blue-green, and people once put it in glow-in-the-dark paint.","Watch-dial painters who licked their brushes got terribly sick from it.","Marie Curie discovered it, and her notebooks are still radioactive today."],"vi":["Radium phát ánh xanh lục mờ, và người ta từng cho nó vào sơn phát sáng trong tối.","Thợ vẽ mặt đồng hồ liếm cọ đã bị bệnh nặng vì nó.","Marie Curie phát hiện ra nó, và sổ tay của bà đến nay vẫn còn phóng xạ."]},
-{"z":89,"en":["Actinium glows an eerie pale blue in the dark from its intense radioactivity.","It gave its name to the actinides, a whole row of the periodic table.","Scientists are exploring it as a precise weapon against cancer cells."],"vi":["Actinium phát ánh xanh nhạt kỳ lạ trong bóng tối vì phóng xạ cực mạnh.","Nó đặt tên cho nhóm actini, cả một hàng trong bảng tuần hoàn.","Các nhà khoa học đang nghiên cứu nó như một vũ khí chính xác chống tế bào ung thư."]},
-{"z":90,"en":["Thorium could one day power safer, cleaner nuclear reactors of the future.","It's about three times more abundant than uranium in the Earth's crust.","It was once used to make camping lantern mantles glow brilliantly white."],"vi":["Thorium một ngày nào đó có thể vận hành lò phản ứng hạt nhân an toàn, sạch hơn của tương lai.","Nó nhiều gấp khoảng ba lần uranium trong vỏ Trái Đất.","Nó từng được dùng làm lưới đèn măng-sông cắm trại phát sáng trắng rực rỡ."]},
-{"z":91,"en":["Protactinium is one of the rarest natural elements, with barely a gram existing in tonnes of uranium ore.","Its name means 'before actinium' because it decays into actinium.","It is so scarce and radioactive that scientists once spent years extracting just 125 grams from 60 tonnes of waste."],"vi":["Protactini là một trong những nguyên tố tự nhiên hiếm nhất, chỉ có chưa tới một gram trong hàng tấn quặng urani.","Tên của nó nghĩa là 'trước actini' vì nó phân rã thành actini.","Nó hiếm và phóng xạ tới mức từng có nhóm nhà khoa học mất nhiều năm để tách được vỏn vẹn 125 gram từ 60 tấn chất thải."]},
-{"z":92,"en":["Uranium powers nuclear reactors and was the fuel inside the first atomic bombs.","It was named after the planet Uranus, discovered just eight years earlier.","A single uranium fuel pellet the size of a fingertip holds as much energy as a tonne of coal."],"vi":["Urani cung cấp năng lượng cho lò phản ứng hạt nhân và là nhiên liệu trong những quả bom nguyên tử đầu tiên.","Nó được đặt tên theo sao Thiên Vương, hành tinh vừa được phát hiện tám năm trước đó.","Một viên nhiên liệu urani nhỏ bằng đầu ngón tay chứa năng lượng tương đương cả một tấn than."]},
-{"z":93,"en":["Neptunium was the first synthetic element heavier than uranium ever made.","It was named after Neptune, continuing the planet theme right after uranium.","Tiny amounts form naturally in uranium ore from neutron capture."],"vi":["Neptuni là nguyên tố nhân tạo nặng hơn urani đầu tiên từng được tạo ra.","Nó được đặt tên theo sao Hải Vương, nối tiếp chủ đề hành tinh ngay sau urani.","Một lượng cực nhỏ hình thành tự nhiên trong quặng urani nhờ quá trình bắt nơtron."]},
-{"z":94,"en":["Plutonium powers space probes like Voyager and the Mars rovers using its own heat.","It was named after Pluto and is famous as a nuclear weapon material.","A lump of plutonium feels warm to the touch because of its constant radioactive decay."],"vi":["Plutoni cung cấp năng lượng cho các tàu thăm dò vũ trụ như Voyager và xe tự hành sao Hỏa nhờ nhiệt tự sinh.","Nó được đặt tên theo sao Diêm Vương và nổi tiếng là vật liệu chế tạo vũ khí hạt nhân.","Một cục plutoni sờ vào thấy ấm vì nó liên tục phân rã phóng xạ."]},
-{"z":95,"en":["Americium is inside most home smoke detectors, helping save lives every day.","It was named after America, where it was discovered during World War II.","Tiny americium emits particles that sense smoke before you can even see it."],"vi":["Americi nằm trong hầu hết các đầu báo khói gia đình, giúp cứu mạng người mỗi ngày.","Nó được đặt tên theo châu Mỹ, nơi nó được phát hiện trong Thế chiến thứ hai.","Một chút americi phát ra các hạt giúp phát hiện khói trước cả khi bạn nhìn thấy."]},
-{"z":96,"en":["Curium was named after Marie and Pierre Curie, pioneers of radioactivity.","It glows purple in the dark from its own intense radiation.","NASA used curium in instruments that analyzed Martian rocks."],"vi":["Curi được đặt tên theo Marie và Pierre Curie, hai người tiên phong nghiên cứu phóng xạ.","Nó phát sáng màu tím trong bóng tối nhờ bức xạ cực mạnh của chính mình.","NASA đã dùng curi trong thiết bị phân tích đá trên sao Hỏa."]},
-{"z":97,"en":["Berkelium was named after Berkeley, California, where it was first created.","It is so rare that only fractions of a gram have ever been made.","Making berkelium for experiments can take over a year of patient work."],"vi":["Berkeli được đặt tên theo thành phố Berkeley, California, nơi nó lần đầu được tạo ra.","Nó hiếm tới mức tổng cộng chỉ vài phần nhỏ của một gram từng được tạo ra.","Việc sản xuất berkeli cho thí nghiệm có thể mất hơn một năm làm việc kiên nhẫn."]},
-{"z":98,"en":["Californium is one of the most expensive substances on Earth, worth millions per gram.","It is a powerful neutron source used to detect gold and find oil underground.","It was named after the U.S. state of California."],"vi":["Californi là một trong những chất đắt nhất Trái Đất, trị giá hàng triệu đô mỗi gram.","Nó là nguồn nơtron mạnh dùng để dò vàng và tìm dầu dưới lòng đất.","Nó được đặt tên theo bang California của Mỹ."]},
-{"z":99,"en":["Einsteinium was named after Albert Einstein, the famous physicist.","It was first discovered in the debris of a hydrogen bomb test in 1952.","It is so radioactive that it glows and slowly destroys its own container."],"vi":["Einsteini được đặt tên theo Albert Einstein, nhà vật lý nổi tiếng.","Nó được phát hiện lần đầu trong mảnh vụn của một vụ thử bom khinh khí năm 1952.","Nó phóng xạ mạnh tới mức phát sáng và từ từ phá hủy chính vật chứa nó."]},
-{"z":100,"en":["Fermium was named after Enrico Fermi, builder of the first nuclear reactor.","Like einsteinium, it was first found in hydrogen bomb test fallout.","No element heavier than fermium can be made by simply adding neutrons."],"vi":["Fermi được đặt tên theo Enrico Fermi, người xây lò phản ứng hạt nhân đầu tiên.","Giống einsteini, nó được tìm thấy lần đầu trong bụi phóng xạ của vụ thử bom khinh khí.","Không nguyên tố nào nặng hơn fermi có thể tạo ra chỉ bằng cách thêm nơtron."]},
-{"z":101,"en":["Mendelevium honors Dmitri Mendeleev, the inventor of the periodic table.","Scientists made the very first sample one atom at a time.","It can only be studied in incredibly tiny, short-lived amounts."],"vi":["Mendelevi vinh danh Dmitri Mendeleev, người sáng tạo bảng tuần hoàn.","Các nhà khoa học đã tạo ra mẫu đầu tiên từng nguyên tử một.","Nó chỉ có thể nghiên cứu ở lượng cực nhỏ và tồn tại rất ngắn."]},
-{"z":102,"en":["Nobelium was named after Alfred Nobel, inventor of dynamite and the Nobel Prizes.","Several labs argued for years over who discovered it first.","Its longest-lived form survives only about an hour."],"vi":["Nobeli được đặt tên theo Alfred Nobel, người phát minh thuốc nổ dynamite và Giải Nobel.","Nhiều phòng thí nghiệm tranh cãi suốt nhiều năm về việc ai phát hiện ra nó trước.","Dạng bền nhất của nó chỉ tồn tại khoảng một giờ."]},
-{"z":103,"en":["Lawrencium was named after Ernest Lawrence, who invented the cyclotron particle accelerator.","It is the last element in the actinide row of the periodic table.","Only a few atoms have ever been created at a time."],"vi":["Lawrenci được đặt tên theo Ernest Lawrence, người phát minh máy gia tốc cyclotron.","Nó là nguyên tố cuối cùng trong dãy actini của bảng tuần hoàn.","Mỗi lần chỉ có vài nguyên tử từng được tạo ra."]},
-{"z":104,"en":["Rutherfordium was named after Ernest Rutherford, the father of nuclear physics.","It is the first 'superheavy' transition metal, made only in particle accelerators.","Its atoms vanish in seconds or less after being created."],"vi":["Rutherfordi được đặt tên theo Ernest Rutherford, cha đẻ của vật lý hạt nhân.","Nó là kim loại chuyển tiếp 'siêu nặng' đầu tiên, chỉ tạo được trong máy gia tốc hạt.","Các nguyên tử của nó biến mất chỉ trong vài giây hoặc nhanh hơn."]},
-{"z":105,"en":["Dubnium was named after Dubna, a Russian town famous for nuclear research.","American and Soviet labs both claimed to discover it during the Cold War.","Only a handful of its atoms have ever existed."],"vi":["Dubni được đặt tên theo Dubna, một thị trấn Nga nổi tiếng về nghiên cứu hạt nhân.","Cả phòng thí nghiệm Mỹ và Liên Xô đều tuyên bố phát hiện ra nó thời Chiến tranh Lạnh.","Tổng cộng chỉ có một nhúm nguyên tử của nó từng tồn tại."]},
-{"z":106,"en":["Seaborgium was named after Glenn Seaborg while he was still alive, a rare honor.","Seaborg himself helped discover ten different elements.","Its atoms survive only a few seconds before decaying."],"vi":["Seaborgi được đặt tên theo Glenn Seaborg khi ông còn sống, một vinh dự hiếm có.","Chính Seaborg đã góp phần phát hiện tới mười nguyên tố khác nhau.","Các nguyên tử của nó chỉ tồn tại vài giây trước khi phân rã."]},
-{"z":107,"en":["Bohrium was named after Niels Bohr, who explained how atoms are structured.","It was first created in Germany by smashing atoms together.","Scientists have only ever made a few atoms of it."],"vi":["Bohri được đặt tên theo Niels Bohr, người giải thích cấu trúc của nguyên tử.","Nó được tạo ra lần đầu ở Đức bằng cách bắn các nguyên tử va vào nhau.","Các nhà khoa học mới chỉ tạo được vài nguyên tử của nó."]},
-{"z":108,"en":["Hassium was named after the German state of Hesse, where it was discovered.","It is one of the densest elements known to exist.","Each atom lasts only a fraction of a second."],"vi":["Hassi được đặt tên theo bang Hesse của Đức, nơi nó được phát hiện.","Nó là một trong những nguyên tố có mật độ lớn nhất từng biết.","Mỗi nguyên tử chỉ tồn tại một phần nhỏ của giây."]},
-{"z":109,"en":["Meitnerium honors Lise Meitner, who helped discover nuclear fission.","She was overlooked for a Nobel Prize her partner received.","Only a tiny number of its atoms have ever been produced."],"vi":["Meitneri vinh danh Lise Meitner, người góp phần phát hiện sự phân hạch hạt nhân.","Bà bị bỏ qua khi giải Nobel được trao cho người cộng sự của mình.","Chỉ một số rất ít nguyên tử của nó từng được tạo ra."]},
-{"z":110,"en":["Darmstadtium was named after Darmstadt, Germany, where it was first made.","It was created by firing nickel atoms at a lead target.","Its most stable atoms last only about ten seconds."],"vi":["Darmstadti được đặt tên theo Darmstadt, Đức, nơi nó lần đầu được tạo ra.","Nó được tạo ra bằng cách bắn nguyên tử niken vào bia chì.","Những nguyên tử bền nhất của nó chỉ tồn tại khoảng mười giây."]},
-{"z":111,"en":["Roentgenium was named after Wilhelm Röntgen, who discovered X-rays.","It was first created in 1994 by colliding nickel and bismuth atoms.","Only a few atoms have ever been observed."],"vi":["Roentgeni được đặt tên theo Wilhelm Röntgen, người phát hiện ra tia X.","Nó được tạo ra lần đầu năm 1994 bằng cách cho nguyên tử niken và bismut va chạm.","Chỉ vài nguyên tử của nó từng được quan sát."]},
-{"z":112,"en":["Copernicium was named after astronomer Nicolaus Copernicus.","Scientists think it might behave like a gas at room temperature.","Each atom decays in less than a minute."],"vi":["Copernici được đặt tên theo nhà thiên văn Nicolaus Copernicus.","Các nhà khoa học cho rằng nó có thể hành xử như chất khí ở nhiệt độ phòng.","Mỗi nguyên tử phân rã trong chưa đầy một phút."]},
-{"z":113,"en":["Nihonium was the first element discovered in Asia, made in Japan.","Its name comes from 'Nihon', the Japanese word for Japan.","Researchers detected just a handful of its atoms over many years."],"vi":["Nihoni là nguyên tố đầu tiên được phát hiện ở châu Á, tạo ra tại Nhật Bản.","Tên của nó bắt nguồn từ 'Nihon', tiếng Nhật nghĩa là Nhật Bản.","Các nhà nghiên cứu chỉ phát hiện được một nhúm nguyên tử suốt nhiều năm."]},
-{"z":114,"en":["Flerovium was named after Georgy Flyorov, a Soviet nuclear physicist.","It sits near the predicted 'island of stability' of longer-lived superheavy atoms.","It might behave like a noble gas despite being a metal."],"vi":["Flerovi được đặt tên theo Georgy Flyorov, một nhà vật lý hạt nhân Liên Xô.","Nó nằm gần 'hòn đảo bền vững' được dự đoán của các nguyên tử siêu nặng sống lâu hơn.","Nó có thể hành xử như khí hiếm dù là kim loại."]},
-{"z":115,"en":["Moscovium was named after the Moscow region of Russia.","It was created by teams from Russia and the United States working together.","Only a few atoms have ever been detected, each lasting a split second."],"vi":["Moscovi được đặt tên theo vùng Moscow của Nga.","Nó được tạo ra nhờ các nhóm Nga và Mỹ hợp tác với nhau.","Chỉ vài nguyên tử từng được phát hiện, mỗi cái tồn tại trong tích tắc."]},
-{"z":116,"en":["Livermorium was named after the Lawrence Livermore Laboratory in California.","It was made by smashing calcium ions into a curium target.","Its atoms exist for only milliseconds before decaying."],"vi":["Livermori được đặt tên theo phòng thí nghiệm Lawrence Livermore ở California.","Nó được tạo ra bằng cách bắn ion canxi vào bia curi.","Các nguyên tử của nó chỉ tồn tại vài mili giây trước khi phân rã."]},
-{"z":117,"en":["Tennessine was named after the U.S. state of Tennessee.","It is the second-heaviest element ever created.","Making it required rare berkelium that took two years to produce."],"vi":["Tennessine được đặt tên theo bang Tennessee của Mỹ.","Nó là nguyên tố nặng thứ hai từng được tạo ra.","Việc tạo ra nó cần berkeli hiếm, phải mất hai năm mới sản xuất được."]},
-{"z":118,"en":["Oganesson is the heaviest known element, sitting at the very end of the periodic table.","It was named after living scientist Yuri Oganessian.","Although grouped with noble gases, it may actually be a solid and reactive."],"vi":["Oganesson là nguyên tố nặng nhất từng biết, nằm ở cuối cùng của bảng tuần hoàn.","Nó được đặt tên theo nhà khoa học còn sống Yuri Oganessian.","Dù xếp chung với khí hiếm, nó có thể thực sự là chất rắn và có khả năng phản ứng."]}
+  // --- Modern (now) ---
+  { author: "Steve Jobs", era: "modern",
+    en: "Your time is limited, so don't waste it living someone else's life.",
+    vi: "Thời gian của bạn có hạn, đừng lãng phí nó để sống cuộc đời của người khác." },
+  { author: "Eleanor Roosevelt", era: "modern",
+    en: "The future belongs to those who believe in the beauty of their dreams.",
+    vi: "Tương lai thuộc về những người tin vào vẻ đẹp của ước mơ mình." },
+  { author: "Oprah Winfrey", era: "modern",
+    en: "You become what you believe.",
+    vi: "Bạn trở thành điều bạn tin tưởng." },
+  { author: "Michelle Obama", era: "modern",
+    en: "When they go low, we go high.",
+    vi: "Khi người ta hạ thấp mình, ta cứ vươn lên cao." },
+  { author: "Martin Luther King Jr.", era: "modern",
+    en: "If you can't fly then run, if you can't run then walk, but whatever you do, keep moving forward.",
+    vi: "Nếu không bay được thì chạy, không chạy được thì đi, nhưng dù làm gì, hãy luôn tiến về phía trước." },
+  { author: "Maya Angelou", era: "modern",
+    en: "Success is liking yourself, liking what you do, and liking how you do it.",
+    vi: "Thành công là yêu chính mình, yêu việc mình làm và yêu cách mình làm." },
+  { author: "Vince Lombardi", era: "modern",
+    en: "It's not whether you get knocked down, it's whether you get up.",
+    vi: "Vấn đề không phải bạn bị quật ngã, mà là bạn có đứng dậy hay không." },
+  { author: "Jim Rohn", era: "modern",
+    en: "If you really want to do something, you'll find a way. If you don't, you'll find an excuse.",
+    vi: "Nếu thực sự muốn làm điều gì đó, bạn sẽ tìm ra cách. Nếu không, bạn sẽ tìm ra lý do." },
+  { author: "Sam Levenson", era: "modern",
+    en: "Don't watch the clock; do what it does. Keep going.",
+    vi: "Đừng nhìn đồng hồ; hãy làm như nó — cứ tiếp tục đi." },
+  { author: "Wayne Gretzky", era: "modern",
+    en: "You miss 100% of the shots you don't take.",
+    vi: "Bạn bỏ lỡ 100% những cú sút mà bạn không thực hiện." },
+  { author: "Mark Twain", era: "modern",
+    en: "The secret of getting ahead is getting started.",
+    vi: "Bí quyết để tiến lên là bắt đầu." },
+  { author: "Roy T. Bennett", era: "modern",
+    en: "Great things never came from comfort zones.",
+    vi: "Những điều vĩ đại không bao giờ đến từ vùng an toàn." },
+  { author: "Tim Notke", era: "modern",
+    en: "Hard work beats talent when talent doesn't work hard.",
+    vi: "Sự chăm chỉ đánh bại tài năng khi tài năng không chịu nỗ lực." },
+  { author: "George Addair", era: "modern",
+    en: "Everything you've ever wanted is on the other side of fear.",
+    vi: "Mọi điều bạn từng khao khát đều nằm ở phía bên kia của nỗi sợ." },
+  { author: "Sheryl Sandberg", era: "modern",
+    en: "Done is better than perfect.",
+    vi: "Hoàn thành tốt hơn là hoàn hảo." },
 ];
-const FACTS = {}; FACT_DATA.forEach(f => FACTS[f.z] = f);
+// Stable id per quote so ratings persist across reloads regardless of shuffle.
+QUOTES.forEach((q, i) => { q.id = "q" + i; });
 
-const CAT_COLOR = {alkali:"--c-alkali",alkaline:"--c-alkaline",transition:"--c-transition",post:"--c-post",
-  metalloid:"--c-metalloid",nonmetal:"--c-nonmetal",halogen:"--c-halogen",noble:"--c-noble",lanthanide:"--c-lanthanide",actinide:"--c-actinide"};
-const color = el => `var(${CAT_COLOR[el.cat]})`;
+/* ---------- 2. Persistence (localStorage, guarded) ---------- */
+const RATINGS_KEY = "dailyspark_ratings";
+const STREAK_KEY = "dailyspark_streak";
 
-/* ===== TRANSLATIONS ===== */
-const I18N = {
- en:{ thisLang:"English", title:"Periodic Table Explorer", sub:"Learn all 118 elements",
-  sessions:"Sessions", subatomic:"Subatomic Particles", streak:"day streak",
-  chooseSession:"Choose a Session", close:"Close", back:"Back",
-  foot:"Tap an unlocked element to see its details. Beat the dragon to unlock more!",
-  session:"Session", learned:"learned", locked:"Locked", completed:"Completed ✓",
-  start:"Start", relearn:"Relearn", continue:"Continue",
-  bannerLearn:"Learn all 20 elements to start the quiz.",
-  bannerReady:"All 20 learned! Start the quiz to complete this session.",
-  quizLockedBtn:"🔒 Quiz locked", fightBtn:"⚔️ Fight the Dragon",
-  markLearned:"Mark as learned", relearnBtn:"↻ Relearn",
-  protons:"Protons", neutrons:"Neutrons", electrons:"Electrons",
-  atomicMass:"Atomic mass", atomicNumber:"Atomic number", categoryLbl:"Category",
-  atomTitle:"Element details", atomCap:"Electron shells (Bohr model)", funFacts:"Fun facts",
-  subTitle:"Subatomic Particles",
-  subIntro:"Every atom is built from three particles. These are the numbers you see on each element card.",
-  thP:"Particle", thC:"Charge", thL:"Location", thR:"Role",
-  eventsTitle:"When particles collide: 3 real events",
-  quizTitle:"Element Battle 🐉", you:"You", dragon:"Dragon", question:"Question",
-  qSym:"Which symbol belongs to {x}?", qName:"Which element has the symbol {x}?",
-  qProt:"How many protons does {x} have?", qElec:"How many electrons does {x} have?",
-  qNeut:"How many neutrons does {x} have?", qFact:"Which fact is TRUE about {x}?",
-  win:"Victory!", winMsg:"You defeated the dragon and finished {s}!",
-  lose:"Defeated...", loseMsg:"The dragon beat you. Review the elements and try again!",
-  tryAgain:"Try again", congrats:"Congratulations!", congMsg:"You completed {s}!",
-  nextUnlocked:"Next session unlocked! 🔓", allDone:"You've mastered the whole table! 🏆",
-  cats:{alkali:"Alkali metal",alkaline:"Alkaline earth metal",transition:"Transition metal",post:"Post-transition metal",metalloid:"Metalloid",nonmetal:"Nonmetal",halogen:"Halogen",noble:"Noble gas",lanthanide:"Lanthanide",actinide:"Actinide"},
-  particles:[["Proton","pos","positive (+)","Nucleus","Its count is the atomic number and defines the element."],
-   ["Neutron","neu","neutral (0)","Nucleus","Adds mass to the atom; changes isotopes."],
-   ["Electron","neg","negative (−)","Shells around the nucleus","Equals the number of protons in a neutral atom."]],
-  events:[["☀️","Fusion in the Sun","In the Sun's core, hydrogen protons fuse into helium, releasing the sunlight and heat that power all life on Earth."],
-   ["☢️","Nuclear fission","A neutron splits a heavy uranium nucleus into pieces, unleashing huge energy used in nuclear power plants (and atomic bombs)."],
-   ["⚡","Beta decay","Inside a radioactive nucleus, a neutron turns into a proton plus an electron, a process used in carbon dating and cancer treatment."]]
- },
- vi:{ thisLang:"Tiếng Việt", title:"Khám Phá Bảng Tuần Hoàn", sub:"Học tất cả 118 nguyên tố",
-  sessions:"Bài học", subatomic:"Hạt cấu tạo", streak:"ngày liên tục",
-  chooseSession:"Chọn bài học", close:"Đóng", back:"Quay lại",
-  foot:"Chạm vào nguyên tố đã mở khoá để xem chi tiết. Đánh bại rồng để mở thêm!",
-  session:"Bài", learned:"đã học", locked:"Đã khoá", completed:"Hoàn thành ✓",
-  start:"Bắt đầu", relearn:"Học lại", continue:"Tiếp tục",
-  bannerLearn:"Học hết 20 nguyên tố để bắt đầu bài kiểm tra.",
-  bannerReady:"Đã học đủ 20! Bắt đầu bài kiểm tra để hoàn thành bài học.",
-  quizLockedBtn:"🔒 Chưa mở", fightBtn:"⚔️ Chiến đấu với Rồng",
-  markLearned:"Đánh dấu đã học", relearnBtn:"↻ Học lại",
-  protons:"Proton", neutrons:"Neutron", electrons:"Electron",
-  atomicMass:"Khối lượng nguyên tử", atomicNumber:"Số hiệu nguyên tử", categoryLbl:"Nhóm",
-  atomTitle:"Chi tiết nguyên tố", atomCap:"Các lớp electron (mô hình Bohr)", funFacts:"Sự thật thú vị",
-  subTitle:"Hạt cấu tạo nguyên tử",
-  subIntro:"Mỗi nguyên tử được tạo từ ba loại hạt. Đây chính là các con số em thấy trên mỗi thẻ nguyên tố.",
-  thP:"Hạt", thC:"Điện tích", thL:"Vị trí", thR:"Vai trò",
-  eventsTitle:"Khi các hạt va chạm: 3 sự kiện có thật",
-  quizTitle:"Trận chiến nguyên tố 🐉", you:"Bạn", dragon:"Rồng", question:"Câu hỏi",
-  qSym:"Ký hiệu nào là của {x}?", qName:"Nguyên tố nào có ký hiệu {x}?",
-  qProt:"{x} có bao nhiêu proton?", qElec:"{x} có bao nhiêu electron?",
-  qNeut:"{x} có bao nhiêu neutron?", qFact:"Điều nào ĐÚNG về {x}?",
-  win:"Chiến thắng!", winMsg:"Bạn đã hạ gục rồng và hoàn thành {s}!",
-  lose:"Thất bại...", loseMsg:"Rồng đã thắng. Hãy ôn lại các nguyên tố và thử lại nhé!",
-  tryAgain:"Thử lại", congrats:"Chúc mừng!", congMsg:"Bạn đã hoàn thành {s}!",
-  nextUnlocked:"Đã mở khoá bài tiếp theo! 🔓", allDone:"Bạn đã chinh phục cả bảng tuần hoàn! 🏆",
-  cats:{alkali:"Kim loại kiềm",alkaline:"Kim loại kiềm thổ",transition:"Kim loại chuyển tiếp",post:"Kim loại sau chuyển tiếp",metalloid:"Á kim",nonmetal:"Phi kim",halogen:"Halogen",noble:"Khí hiếm",lanthanide:"Họ Lantan",actinide:"Họ Actini"},
-  particles:[["Proton","pos","dương (+)","Hạt nhân","Số proton là số hiệu nguyên tử và xác định nguyên tố."],
-   ["Neutron","neu","trung hoà (0)","Hạt nhân","Tăng khối lượng nguyên tử; tạo ra đồng vị."],
-   ["Electron","neg","âm (−)","Các lớp quanh hạt nhân","Bằng số proton trong nguyên tử trung hoà."]],
-  events:[["☀️","Phản ứng nhiệt hạch trong Mặt Trời","Trong lõi Mặt Trời, các proton hydro hợp nhất thành heli, giải phóng ánh sáng và nhiệt nuôi dưỡng sự sống trên Trái Đất."],
-   ["☢️","Phản ứng phân hạch","Một neutron bắn vỡ hạt nhân urani nặng, giải phóng năng lượng khổng lồ dùng trong nhà máy điện hạt nhân (và bom nguyên tử)."],
-   ["⚡","Phân rã beta","Trong hạt nhân phóng xạ, một neutron biến thành proton cộng electron, quá trình dùng để xác định tuổi cổ vật và chữa ung thư."]]
- }
-};
-
-/* ===== STATE ===== */
-const SESSION_SIZE=20, SESSION_COUNT=6;
-const sessionOf = z => Math.min(SESSION_COUNT, Math.floor((z-1)/SESSION_SIZE)+1);
-const elementsOf = s => E.filter(el => sessionOf(el.z)===s);
-const KEY="ptable.save.v2";
-const defaultState={lang:"en",learned:[],unlocked:1,completed:[],streak:0,lastStudy:null};
-let S = load();
-
-function ymd(d){const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());}
-function today(){return ymd(new Date());}
-function yesterday(){const d=new Date();d.setDate(d.getDate()-1);return ymd(d);}
-function load(){
-  try{
-    const raw=JSON.parse(localStorage.getItem(KEY));
-    if(!raw) return {...defaultState,learnedSet:new Set(),completedSet:new Set()};
-    const s={...defaultState,...raw};
-    s.learnedSet=new Set(s.learned); s.completedSet=new Set(s.completed||[]);
-    if(s.lastStudy && s.lastStudy!==today() && s.lastStudy!==yesterday()){s.streak=0;s.lastStudy=null;}
-    return s;
-  }catch{return {...defaultState,learnedSet:new Set(),completedSet:new Set()};}
+function loadJSON(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) || fallback; }
+  catch { return fallback; }
 }
-function save(){
-  S.learned=[...S.learnedSet]; S.completed=[...S.completedSet];
-  localStorage.setItem(KEY,JSON.stringify({lang:S.lang,learned:S.learned,unlocked:S.unlocked,completed:S.completed,streak:S.streak,lastStudy:S.lastStudy}));
-}
-function registerStudyDay(){
-  if(S.lastStudy===today()) return;
-  S.streak=(S.lastStudy===yesterday())?S.streak+1:1; S.lastStudy=today();
-}
-const t = ()=>I18N[S.lang];
-const name = el => el.name;          // IUPAC name (same in both languages)
-const $ = id => document.getElementById(id);
-const fmt = (str,x)=>str.replace("{x}",x).replace("{s}",x);
-
-/* ===== STATIC TEXT + HEADER + TABLE ===== */
-function applyStaticText(){
-  const L=t();
-  $("appTitle").textContent=L.title; $("appSub").textContent=L.sub;
-  $("streakLbl").textContent=L.streak;
-  $("sessionsBtn").querySelector("span").textContent=L.sessions;
-  $("subatomicBtn").querySelector("span").textContent=L.subatomic;
-  $("langBtn").textContent="🌐 "+L.thisLang;
-  $("footNote").textContent=L.foot;
-  $("sessionsTitle").textContent=L.chooseSession; $("sessClose").textContent=L.close;
-  $("backTxt").textContent=L.back;
-  $("subTitle").textContent=L.subTitle; $("subIntro").textContent=L.subIntro;
-  $("thP").textContent=L.thP; $("thC").textContent=L.thC; $("thL").textContent=L.thL; $("thR").textContent=L.thR;
-  $("eventsTitle").textContent=L.eventsTitle;
-  $("quizTitle").textContent=L.quizTitle; $("soldierLab").textContent=L.you; $("dragonLab").textContent=L.dragon;
-  $("detailHdr").textContent=L.atomTitle; $("congTitle").textContent=L.congrats; $("congBtn").textContent=L.continue;
-}
-function renderHeader(){$("streakNum").textContent=S.streak;}
-function renderLegend(){const L=t();$("legend").innerHTML=Object.keys(CAT_COLOR).map(c=>`<span><i style="background:var(${CAT_COLOR[c]})"></i>${L.cats[c]}</span>`).join("");}
-function renderTable(){
-  const grid=$("ptable"); grid.innerHTML="";
-  [{col:3,row:6,txt:"57–71"},{col:3,row:7,txt:"89–103"}].forEach(m=>{
-    const d=document.createElement("div"); d.className="cell";
-    d.style.gridColumn=m.col; d.style.gridRow=m.row; d.style.background="#2a3050";
-    d.style.color="#8b94c4"; d.style.fontSize=".62rem"; d.style.cursor="default"; d.textContent=m.txt;
-    grid.appendChild(d);
-  });
-  E.forEach(el=>{
-    const cell=document.createElement("div");
-    const unlocked=sessionOf(el.z)<=S.unlocked;
-    cell.className="cell"+(unlocked?"":" locked")+(S.learnedSet.has(el.z)?" learned":"");
-    cell.style.gridColumn=el.col; cell.style.gridRow=el.row;
-    if(unlocked) cell.style.background=color(el);
-    cell.innerHTML=`<span class="num">${el.z}</span><span class="sym">${el.sym}</span>`+(unlocked?"":`<span class="lockicon">🔒</span>`);
-    if(unlocked) cell.onclick=()=>openDetail(el);
-    grid.appendChild(cell);
-  });
+function saveJSON(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
 }
 
-/* ===== SESSIONS ===== */
-function openSessions(){
-  const L=t(); const list=$("sessionList"); list.innerHTML="";
-  for(let s=1;s<=SESSION_COUNT;s++){
-    const els=elementsOf(s);
-    const learnedCount=els.filter(e=>S.learnedSet.has(e.z)).length;
-    const unlocked=s<=S.unlocked, done=S.completedSet.has(s);
-    const pct=Math.round(learnedCount/els.length*100);
-    const card=document.createElement("div");
-    card.className="session-card"+(unlocked?"":" locked");
-    const badge=done?"badge done":(unlocked?"badge":"badge lk");
-    const action=!unlocked?`<span style="color:var(--muted)">🔒 ${L.locked}</span>`
-      :`<button class="btn primary">${done?L.relearn:(learnedCount?L.continue:L.start)}</button>`;
-    card.innerHTML=`<div class="${badge}">${unlocked?(done?"✓":s):"🔒"}</div>
-      <div class="session-info"><b>${L.session} ${s}</b> <span class="range">(${els[0].z}–${els[els.length-1].z})</span>
-        <div style="font-size:.8rem;color:var(--muted);margin-top:2px">${learnedCount}/${els.length} ${L.learned}${done?" · "+L.completed:""}</div>
-        <div class="progress"><i style="width:${pct}%"></i></div></div><div>${action}</div>`;
-    if(unlocked) card.querySelector("button").onclick=()=>{close("sessionsView");openLearn(s);};
-    list.appendChild(card);
+let ratings = loadJSON(RATINGS_KEY, {});
+let streakState = loadJSON(STREAK_KEY, { count: 0, lastDay: null });
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function dayDiff(aKey, bKey) {
+  return Math.round((new Date(bKey + "T00:00:00") - new Date(aKey + "T00:00:00")) / 86400000);
+}
+
+// Rating a quote = today's "learn" engagement.
+function registerEngagement() {
+  const today = todayKey();
+  if (streakState.lastDay === today) return;
+  if (streakState.lastDay && dayDiff(streakState.lastDay, today) === 1) streakState.count += 1;
+  else streakState.count = 1;
+  streakState.lastDay = today;
+  saveJSON(STREAK_KEY, streakState);
+  renderStreak();
+}
+function reconcileStreakOnLoad() {
+  if (streakState.lastDay && dayDiff(streakState.lastDay, todayKey()) > 1) {
+    streakState = { count: 0, lastDay: null };
+    saveJSON(STREAK_KEY, streakState);
   }
-  show("sessionsView");
+  renderStreak();
+}
+function renderStreak() {
+  document.getElementById("streakNum").textContent = streakState.count;
 }
 
-let currentSession=1;
-function openLearn(s){
-  currentSession=s; const L=t(); const els=elementsOf(s);
-  $("learnTitle").textContent=`${L.session} ${s} · ${els[0].z}–${els[els.length-1].z}`;
-  const learnedCount=els.filter(e=>S.learnedSet.has(e.z)).length;
-  const ready=learnedCount===els.length;
-  const banner=$("learnBanner");
-  banner.innerHTML=`<div class="txt"><b>${ready?L.bannerReady:L.bannerLearn}</b><small>${learnedCount}/${els.length} ${L.learned}</small></div>
-    <button class="btn ${ready?'danger':''}" id="fightBtn" ${ready?"":"disabled"}>${ready?L.fightBtn:L.quizLockedBtn}</button>`;
-  if(ready) $("fightBtn").onclick=()=>{close("learnView");startBattle(s);};
-  const grid=$("learnGrid"); grid.innerHTML="";
-  els.forEach(el=>{
-    const tile=document.createElement("div");
-    tile.className="learn-tile"+(S.learnedSet.has(el.z)?" learned":"");
-    tile.style.background=color(el);
-    tile.innerHTML=`<div class="lz">${el.z}</div><div class="ls">${el.sym}</div><div class="ln">${name(el)}</div>`;
-    tile.onclick=()=>openDetail(el,s);
-    grid.appendChild(tile);
-  });
-  show("learnView");
-}
+/* ---------- 3. Build the pages ---------- */
+const feed = document.getElementById("feed");
+const BADGE_LABEL = { classic: "Classic Wisdom", modern: "Modern Voice" };
 
-/* ===== DETAIL ===== */
-function openDetail(el,fromSession){
-  const L=t();
-  const protons=el.z, electrons=el.z, neutrons=Math.round(el.mass)-el.z;
-  const isLearned=S.learnedSet.has(el.z);
-  const facts=(FACTS[el.z]?FACTS[el.z][S.lang]:[])||[];
-  $("detailBody").innerHTML=`
-    <div class="detail-top">
-      <div class="big-tile" style="background:${color(el)}"><span class="bz">${el.z}</span><span class="bs">${el.sym}</span><span class="bn">${name(el)}</span></div>
-      <div class="detail-name"><h2>${name(el)}</h2><div class="cat">${L.cats[el.cat]}</div>
-        <div class="atom-wrap">${atomSVG(el.z)}<div class="cap">${L.atomCap}: ${(SHELLS[el.z]||[]).join(", ")}</div></div></div>
-    </div>
-    <div class="stats">
-      <div class="stat p"><div class="v">${protons}</div><div class="k">${L.protons}</div></div>
-      <div class="stat n"><div class="v">${neutrons}</div><div class="k">${L.neutrons}</div></div>
-      <div class="stat e"><div class="v">${electrons}</div><div class="k">${L.electrons}</div></div>
-    </div>
-    <div class="meta-row"><span>${L.atomicNumber}: <b>${el.z}</b></span><span>${L.atomicMass}: <b>${el.mass} amu</b></span><span>${L.categoryLbl}: <b>${L.cats[el.cat]}</b></span></div>
-    <div class="facts"><h3>💡 ${L.funFacts}</h3><ul>${facts.map(f=>`<li>${f}</li>`).join("")}</ul></div>
-    <button class="btn primary" id="markBtn" style="margin-top:16px">${isLearned?L.relearnBtn:L.markLearned}</button>`;
-  $("markBtn").onclick=()=>{markLearned(el); if(fromSession) openLearn(fromSession); else renderTable(); close("detailView");};
-  show("detailView");
-}
-function atomSVG(z){
-  const shells=SHELLS[z]||[]; const size=132,cx=size/2,cy=size/2,maxR=cx-10,nucR=11;
-  let svg=`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
-  svg+=`<circle cx="${cx}" cy="${cy}" r="${nucR}" fill="#ff8787"/>`;
-  const n=shells.length;
-  shells.forEach((count,i)=>{
-    const r=nucR+8+(i+1)*((maxR-nucR-8)/n);
-    svg+=`<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="none" stroke="rgba(116,192,252,.4)" stroke-width="1"/>`;
-    for(let k=0;k<count;k++){
-      const a=(2*Math.PI*k)/count - Math.PI/2;
-      svg+=`<circle cx="${(cx+r*Math.cos(a)).toFixed(1)}" cy="${(cy+r*Math.sin(a)).toFixed(1)}" r="2.3" fill="#74c0fc"/>`;
-    }
-  });
-  return svg+`</svg>`;
-}
-function markLearned(el){
-  S.learnedSet.add(el.z); registerStudyDay(); renderHeader(); save();
-}
-
-/* ===== SUBATOMIC ===== */
-function openSubatomic(){
-  const L=t();
-  $("subBody").innerHTML=L.particles.map(p=>`<tr><td><b>${p[0]}</b></td><td><span class="chip ${p[1]}">${p[2]}</span></td><td>${p[3]}</td><td>${p[4]}</td></tr>`).join("");
-  $("eventsBody").innerHTML=L.events.map(e=>`<div class="event"><b><span class="ico">${e[0]}</span>${e[1]}</b><span>${e[2]}</span></div>`).join("");
-  show("subView");
-}
-
-/* ===== QUIZ BATTLE ===== */
-let battle=null;
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function pick(a){return a[Math.floor(Math.random()*a.length)];}
-function startBattle(s){
-  battle={s:s,dragon:100,soldier:5,qNum:0,els:elementsOf(s)};
-  updateHp(); $("dragonEl").textContent="🐉"; $("soldierEl").textContent="🧑‍🚒";
-  show("quizView"); nextQuestion();
-}
-function updateHp(){
-  $("dragonHp").style.width=Math.max(0,battle.dragon)+"%";
-  $("soldierHp").style.width=(Math.max(0,battle.soldier)/5*100)+"%";
-}
-function makeQuestion(){
-  const L=t(); const els=battle.els; const el=pick(els);
-  const type=pick(["sym","name","prot","elec","neut","fact"]);
-  let q,correct,opts;
-  const otherEls=()=>shuffle(E.filter(e=>e.z!==el.z));
-  if(type==="sym"){ q=fmt(L.qSym,name(el)); correct=el.sym; opts=[correct,...otherEls().slice(0,3).map(e=>e.sym)]; }
-  else if(type==="name"){ q=fmt(L.qName,el.sym); correct=name(el); opts=[correct,...otherEls().slice(0,3).map(e=>name(e))]; }
-  else if(type==="prot"||type==="elec"||type==="neut"){
-    correct = type==="neut" ? (Math.round(el.mass)-el.z) : el.z;
-    q = fmt(type==="prot"?L.qProt:type==="elec"?L.qElec:L.qNeut, name(el));
-    const set=new Set([correct]); const offs=shuffle([-3,-2,-1,1,2,3,4,-4,5]);
-    for(const o of offs){ if(set.size>=4) break; const v=correct+o; if(v>=0) set.add(v); }
-    opts=[...set];
-  } else { // fact
-    q=fmt(L.qFact,name(el)); correct=pick(FACTS[el.z][S.lang]);
-    const pool=shuffle(E.filter(e=>e.z!==el.z && FACTS[e.z])).slice(0,3).map(e=>pick(FACTS[e.z][S.lang]));
-    opts=[correct,...pool];
+function shuffled(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  opts=shuffle(opts.map(String));
-  return {q,correct:String(correct),opts};
+  return a;
 }
-function nextQuestion(){
-  const L=t(); battle.qNum++; const Q=makeQuestion();
-  $("qbox").innerHTML=`<div class="qmeta"><span>${L.question} ${battle.qNum}</span><span>🐉 ${Math.max(0,battle.dragon)} HP · ❤️ ${Math.max(0,battle.soldier)}</span></div>
-    <div class="qtext">${Q.q}</div><div class="opts">${Q.opts.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join("")}</div>`;
-  $("qbox").querySelectorAll(".opt").forEach(b=>{
-    b.onclick=()=>answer(b,Q,b.textContent===Q.correct);
+
+function showToast(el, msg) {
+  el.textContent = msg;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ""; }, 2600);
+}
+
+// Legacy clipboard copy for contexts where the async Clipboard API is blocked
+// (e.g. file://). Returns true on success.
+function copyViaTextarea(text) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+
+function buildPage(item, index) {
+  const page = document.createElement("section");
+  page.className = "page";
+
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const badge = document.createElement("span");
+  badge.className = "badge " + item.era;
+  badge.textContent = BADGE_LABEL[item.era];
+  card.appendChild(badge);
+
+  const quote = document.createElement("p");
+  quote.className = "quote";
+  let lang = "en";
+  quote.textContent = "“" + item.en + "”";
+  card.appendChild(quote);
+
+  const author = document.createElement("p");
+  author.className = "author";
+  author.textContent = "— " + item.author;
+  card.appendChild(author);
+
+  // controls
+  const controls = document.createElement("div");
+  controls.className = "controls";
+
+  // VI / EN translate toggle
+  const langBtn = document.createElement("button");
+  langBtn.className = "btn";
+  langBtn.innerHTML = "🌐 <span>Tiếng Việt</span>";
+  langBtn.addEventListener("click", () => {
+    lang = lang === "en" ? "vi" : "en";
+    quote.textContent = "“" + (lang === "en" ? item.en : item.vi) + "”";
+    langBtn.querySelector("span").textContent = lang === "en" ? "Tiếng Việt" : "English";
   });
-}
-function answer(btn,Q,correct){
-  $("qbox").querySelectorAll(".opt").forEach(b=>{b.disabled=true; if(b.textContent===Q.correct) b.classList.add("correct");});
-  if(correct){ btn.classList.add("correct"); battle.dragon-=10; fireAttack(); }
-  else { btn.classList.add("wrong"); battle.soldier-=1; blueAttack(); }
-  updateHp();
-  setTimeout(()=>{
-    if(battle.dragon<=0) winBattle();
-    else if(battle.soldier<=0) loseBattle();
-    else nextQuestion();
-  },1000);
-}
-function fireAttack(){
-  beep(140,.18,"sawtooth"); // roar
-  whoosh();
-  const f=$("fireFlame"); f.style.animation="none"; void f.offsetWidth; f.style.animation="";
-  f.classList.remove("fire"); void f.offsetWidth; f.classList.add("fire");
-  const d=$("dragonEl"), r=$("roarEl");
-  setTimeout(()=>{d.classList.add("shake"); r.classList.add("go"); setTimeout(()=>{d.classList.remove("shake");r.classList.remove("go");},500);},400);
-}
-function blueAttack(){
-  beep(90,.22,"square");
-  const f=$("blueFlame"); f.classList.remove("blue"); void f.offsetWidth; f.classList.add("blue");
-  const sld=$("soldierEl");
-  setTimeout(()=>{sld.classList.add("shake"); setTimeout(()=>sld.classList.remove("shake"),500);},400);
-}
-function winBattle(){
-  const L=t(); const s=battle.s; S.completedSet.add(s);
-  let unlockedNew=false;
-  if(s===S.unlocked && s<SESSION_COUNT){S.unlocked=s+1; unlockedNew=true;}
-  registerStudyDay(); save(); renderHeader(); renderTable();
-  close("quizView");
-  $("endEmoji").textContent="🏆"; $("endTitle").textContent=L.win;
-  $("endMsg").textContent=fmt(L.winMsg,`${L.session} ${s}`);
-  $("endBtn").textContent=L.continue;
-  $("endBtn").onclick=()=>{close("battleEnd"); celebrate(s,unlockedNew);};
-  show("battleEnd"); confetti();
-}
-function loseBattle(){
-  const L=t(); const s=battle.s;
-  close("quizView");
-  $("endEmoji").textContent="💀"; $("endTitle").textContent=L.lose; $("endMsg").textContent=L.loseMsg;
-  $("endBtn").textContent=L.tryAgain; $("endBtn").onclick=()=>{close("battleEnd"); startBattle(s);};
-  show("battleEnd");
+  controls.appendChild(langBtn);
+
+  // Share
+  const shareBtn = document.createElement("button");
+  shareBtn.className = "btn";
+  shareBtn.innerHTML = "🔗 <span>Share</span>";
+  controls.appendChild(shareBtn);
+
+  // Stars
+  const stars = document.createElement("div");
+  stars.className = "stars";
+  function paint(v) { [...stars.children].forEach((s, i) => s.classList.toggle("on", i < v)); }
+  for (let v = 1; v <= 5; v++) {
+    const star = document.createElement("span");
+    star.className = "star";
+    star.textContent = "★";
+    star.addEventListener("mouseenter", () => paint(v));
+    star.addEventListener("mouseleave", () => paint(ratings[item.id] || 0));
+    star.addEventListener("click", () => {
+      ratings[item.id] = v;
+      saveJSON(RATINGS_KEY, ratings);
+      paint(v);
+      registerEngagement();
+      showToast(toast, `Rated ${v}/5 ★`);
+    });
+    stars.appendChild(star);
+  }
+  paint(ratings[item.id] || 0);
+  controls.appendChild(stars);
+
+  card.appendChild(controls);
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  card.appendChild(toast);
+
+  // Share behavior: native share sheet → clipboard API → execCommand → manual.
+  shareBtn.addEventListener("click", async () => {
+    const text = `“${lang === "en" ? item.en : item.vi}” — ${item.author}`;
+    // 1) Native share sheet (mobile / supported browsers)
+    try {
+      if (navigator.share) { await navigator.share({ title: "Daily Spark", text }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; /* user cancelled */ }
+    // 2) Async Clipboard API (works on https / localhost with focus)
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(toast, "Copied to clipboard!");
+      return;
+    } catch (e) { /* fall through */ }
+    // 3) Legacy execCommand copy (works on file:// and older browsers)
+    if (copyViaTextarea(text)) { showToast(toast, "Copied to clipboard!"); return; }
+    // 4) Last resort: show the text so the user can copy it by hand
+    showToast(toast, "Copy this: " + text);
+  });
+
+  page.appendChild(card);
+
+  // Scroll hint only on the very first page.
+  if (index === 0) {
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.innerHTML = "Scroll for more · Vuốt để xem thêm<span class='chev'>⌄</span>";
+    page.appendChild(hint);
+  }
+
+  return page;
 }
 
-/* simple Web Audio sound effects (guarded) */
-let AC=null;
-function ac(){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();return AC;}catch{return null;}}
-function beep(freq,dur,type){
-  const c=ac(); if(!c) return;
-  try{const o=c.createOscillator(),g=c.createGain();o.type=type||"sine";o.frequency.value=freq;
-    o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(.14,c.currentTime);
-    g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);o.start();o.stop(c.currentTime+dur);}catch{}
-}
-function whoosh(){const c=ac();if(!c)return;try{const o=c.createOscillator(),g=c.createGain();o.type="triangle";
-  o.frequency.setValueAtTime(600,c.currentTime);o.frequency.exponentialRampToValueAtTime(200,c.currentTime+.25);
-  o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(.1,c.currentTime);
-  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.25);o.start();o.stop(c.currentTime+.25);}catch{}}
-
-/* ===== CONGRATS + confetti ===== */
-function celebrate(s,unlockedNew){
-  const L=t();
-  $("congMsg").textContent=fmt(L.congMsg,`${L.session} ${s}`);
-  $("congNext").textContent=unlockedNew?L.nextUnlocked:(s===SESSION_COUNT?L.allDone:"");
-  show("congrats"); confetti();
-}
-function confetti(){
-  const box=document.createElement("div"); box.className="confetti";
-  const cols=["#ff6b6b","#ffd43b","#51cf66","#4dabf7","#da77f2","#ff922b"];
-  for(let i=0;i<90;i++){const p=document.createElement("i");p.style.left=(Math.random()*100)+"vw";
-    p.style.background=cols[i%cols.length];p.style.animationDuration=(2+Math.random()*2)+"s";
-    p.style.animationDelay=(Math.random()*.6)+"s";box.appendChild(p);}
-  document.body.appendChild(box); setTimeout(()=>box.remove(),4200);
+function buildEndPage() {
+  const page = document.createElement("section");
+  page.className = "page";
+  const card = document.createElement("div");
+  card.className = "card end";
+  card.innerHTML = "<h2>🌿 Keep climbing</h2><p>You've reached the end of today's trail.</p>";
+  const btn = document.createElement("button");
+  btn.className = "btn";
+  btn.style.marginTop = "22px";
+  btn.innerHTML = "↑ <span>Back to top</span>";
+  btn.addEventListener("click", () => feed.scrollTo({ top: 0, behavior: "smooth" }));
+  card.appendChild(btn);
+  page.appendChild(card);
+  return page;
 }
 
-/* ===== WIRING ===== */
-function show(id){$(id).classList.add("show");}
-function close(id){$(id).classList.remove("show");}
-document.querySelectorAll(".overlay[data-close]").forEach(ov=>ov.addEventListener("click",e=>{if(e.target===ov)close(ov.id);}));
-document.querySelectorAll("[data-close-btn]").forEach(b=>b.addEventListener("click",()=>close(b.closest(".overlay").id)));
-$("learnBack").onclick=()=>{close("learnView");openSessions();};
-$("sessionsBtn").onclick=openSessions;
-$("subatomicBtn").onclick=openSubatomic;
-$("congBtn").onclick=()=>{close("congrats");renderTable();openSessions();};
-$("langBtn").onclick=()=>{S.lang=S.lang==="en"?"vi":"en";save();document.documentElement.lang=S.lang;renderAll();};
-document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll(".overlay.show").forEach(o=>close(o.id));});
+function render() {
+  const order = shuffled(QUOTES);
+  const frag = document.createDocumentFragment();
+  order.forEach((item, i) => frag.appendChild(buildPage(item, i)));
+  frag.appendChild(buildEndPage());
+  feed.appendChild(frag);
+}
 
-function renderAll(){applyStaticText();renderHeader();renderLegend();renderTable();}
-renderAll();
+/* ---------- 4. Init ---------- */
+reconcileStreakOnLoad();
+render();
 </script>
 </body>
 </html>
